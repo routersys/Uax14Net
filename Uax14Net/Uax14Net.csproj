@@ -1,9 +1,57 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
+
+  <PropertyGroup>
+    <PackageId>Uax14Net</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>routersys</Authors>
+    <Product>Uax14Net</Product>
+    <Title>Uax14Net</Title>
+    <Description>A pure C# implementation of the Unicode Line Breaking Algorithm (UAX #14) for .NET 10. Determines break opportunities and mandatory break positions in Unicode text, conforming to Unicode 17.0.0 and UAX #14 Revision 55. The whole algorithm runs without a managed allocation and the library is annotated for Native AOT. Correctness is verified against the official LineBreakTest.txt of Unicode 17.0.0.</Description>
+    <Copyright>Copyright (c) 2026 routersys</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/routersys/Uax14Net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/routersys/Uax14Net</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>unicode;uax14;uax-14;line-breaking;line-break;linebreak;text-segmentation;text;native-aot;zero-allocation</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReleaseNotes>See https://github.com/routersys/Uax14Net/releases</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\.github\LICENSE\UnicodeDataFiles.txt" Pack="true" PackagePath="THIRD-PARTY-NOTICES\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Uax14Net.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="..\reference\data\LineBreak.txt" Visible="false" />
+    <AdditionalFiles Include="..\reference\data\EastAsianWidth.txt" Visible="false" />
+    <AdditionalFiles Include="..\reference\data\emoji-data.txt" Visible="false" />
+    <AdditionalFiles Include="..\reference\data\DerivedGeneralCategory.txt" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Uax14Net.SourceGenerator\Uax14Net.SourceGenerator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
 
 </Project>
