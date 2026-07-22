@@ -134,12 +134,12 @@ Windows 11 上の 13th Gen Intel Core i7-1360P で、サンプルアプリケー
 
 <!-- BENCHMARK:CI:BEGIN -->
 
-GitHub Actions の `windows-latest` ランナー (AMD64 Family 25 Model 1 Stepping 1, AuthenticAMD) で CI が計測。NativeAOT で発行し、630784 コードポイントの多言語コーパスに対する 20 回中の最良値。2026-07-22 に コミット `862baed` で記録。
+GitHub Actions の `windows-latest` ランナー (Intel64 Family 6 Model 207 Stepping 2, GenuineIntel) で CI が計測。NativeAOT で発行し、630784 コードポイントの多言語コーパスに対する 20 回中の最良値。2026-07-22 に コミット `28dd2eb` で記録。
 
 | 指標 | NativeAOT |
 |---|---:|
-| スループット | 47.5 MB/s |
-| コードポイント毎の時間 | 41.18 ns |
+| スループット | 55.8 MB/s |
+| コードポイント毎の時間 | 35.06 ns |
 
 <!-- BENCHMARK:CI:END -->
 
