@@ -1,3 +1,6 @@
 <Solution>
   <Project Path="Uax14Net/Uax14Net.csproj" />
+  <Project Path="Uax14Net.Examples/Uax14Net.Examples.csproj" />
+  <Project Path="Uax14Net.SourceGenerator/Uax14Net.SourceGenerator.csproj" />
+  <Project Path="Uax14Net.Tests/Uax14Net.Tests.csproj" />
 </Solution>
