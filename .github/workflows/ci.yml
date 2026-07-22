@@ -95,8 +95,14 @@ jobs:
         run: find Uax14Net.Examples/bin -name Uax14Net.Examples.exe -path "*publish*" -exec ls -la {} +
 
       - name: 発行された実行ファイルを走らせる
-        shell: cmd
-        run: Uax14Net.Examples\bin\Release\net10.0\win-x64\publish\Uax14Net.Examples.exe
+        run: |
+          AOT=$(find Uax14Net.Examples/bin -name Uax14Net.Examples.exe -path "*publish*" -print -quit)
+          if [ -z "${AOT}" ]; then
+            echo "発行された実行ファイルが見つかりません"
+            exit 1
+          fi
+          echo "実行: ${AOT}"
+          "${AOT}"
 
   build-linux:
     name: Linux でのビルドと適合検証
