@@ -4,11 +4,12 @@ using System.Runtime.CompilerServices;
 
 namespace Uax14Net;
 
-internal ref struct LineBreakScanner
+internal ref struct LineBreakScanner<TDecoder>
+    where TDecoder : struct, IUtfDecoder, allows ref struct
 {
     private const int DottedCircle = 0x25CC;
 
-    private readonly ReadOnlySpan<char> _text;
+    private readonly TDecoder _decoder;
     private readonly LineBreakOptions _options;
     private int _index;
 
@@ -36,9 +37,9 @@ internal ref struct LineBreakScanner
     private bool _started;
     private bool _emittedEot;
 
-    public LineBreakScanner(ReadOnlySpan<char> text, LineBreakOptions options)
+    public LineBreakScanner(TDecoder decoder, LineBreakOptions options)
     {
-        _text = text;
+        _decoder = decoder;
         _options = options;
         _index = 0;
         _curCls = LineBreakClass.XX;
@@ -61,13 +62,13 @@ internal ref struct LineBreakScanner
         _runEnd = 0;
         _runBuffer = null;
 
-        if (text.Length == 0)
+        if (_decoder.Length == 0)
         {
             _emittedEot = true;
             return;
         }
 
-        Eff first = ReadEffective(_text, 0, in _options);
+        Eff first = ReadEffective(_decoder, 0, in _options);
         if (first.Sa && _options.ComplexContextResolver is not null)
         {
             LoadRun(0);
@@ -86,21 +87,21 @@ internal ref struct LineBreakScanner
             return false;
         }
 
-        if (_index >= _text.Length)
+        if (_index >= _decoder.Length)
         {
             if (!_emittedEot)
             {
                 _emittedEot = true;
-                position = _text.Length;
+                position = _decoder.Length;
                 action = BreakAction.Mandatory;
                 return true;
             }
-            position = _text.Length;
+            position = _decoder.Length;
             action = BreakAction.Prohibited;
             return false;
         }
 
-        Eff n = ReadEffective(_text, _index, in _options);
+        Eff n = ReadEffective(_decoder, _index, in _options);
         position = _index;
         if (n.Sa && !_curSa && _options.ComplexContextResolver is not null)
         {
@@ -190,7 +191,7 @@ internal ref struct LineBreakScanner
         }
         if (next == LineBreakClass.QU && (nextFlags & LineBreakData.FlagFinalPunctuation) != 0)
         {
-            Eff after = ReadEffective(_text, n.End, in _options);
+            Eff after = ReadEffective(_decoder, n.End, in _options);
             if (!after.Exists || IsLb15bFollower(after.Cls))
             {
                 return BreakAction.Prohibited;
@@ -198,7 +199,7 @@ internal ref struct LineBreakScanner
         }
         if (cur == LineBreakClass.SP && next == LineBreakClass.IS)
         {
-            Eff after = ReadEffective(_text, n.End, in _options);
+            Eff after = ReadEffective(_decoder, n.End, in _options);
             if (after.Exists && after.Cls == LineBreakClass.NU)
             {
                 return BreakAction.Allowed;
@@ -236,7 +237,7 @@ internal ref struct LineBreakScanner
             {
                 return BreakAction.Prohibited;
             }
-            Eff after = ReadEffective(_text, n.End, in _options);
+            Eff after = ReadEffective(_decoder, n.End, in _options);
             if (!after.Exists || (after.Flags & LineBreakData.FlagEastAsian) == 0)
             {
                 return BreakAction.Prohibited;
@@ -365,7 +366,7 @@ internal ref struct LineBreakScanner
         }
         if (_curAk && nextAk)
         {
-            Eff after = ReadEffective(_text, n.End, in _options);
+            Eff after = ReadEffective(_decoder, n.End, in _options);
             if (after.Exists && after.Cls == LineBreakClass.VF)
             {
                 return BreakAction.Prohibited;
@@ -426,14 +427,14 @@ internal ref struct LineBreakScanner
         }
         if (cur is LineBreakClass.PO or LineBreakClass.PR && next == LineBreakClass.OP)
         {
-            Eff a = ReadEffective(_text, n.End, in _options);
+            Eff a = ReadEffective(_decoder, n.End, in _options);
             if (a.Exists && a.Cls == LineBreakClass.NU)
             {
                 return true;
             }
             if (a.Exists && a.Cls == LineBreakClass.IS)
             {
-                Eff b = ReadEffective(_text, a.End, in _options);
+                Eff b = ReadEffective(_decoder, a.End, in _options);
                 if (b.Exists && b.Cls == LineBreakClass.NU)
                 {
                     return true;
@@ -528,14 +529,14 @@ internal ref struct LineBreakScanner
     private static bool IsAk(LineBreakClass c, int cp)
         => c is LineBreakClass.AK or LineBreakClass.AS || cp == DottedCircle;
 
-    private static Eff ReadEffective(ReadOnlySpan<char> text, int index, in LineBreakOptions options)
+    private static Eff ReadEffective(TDecoder decoder, int index, in LineBreakOptions options)
     {
-        if (index >= text.Length)
+        if (index >= decoder.Length)
         {
             return Eff.None(index);
         }
 
-        int cp = Decode(text, index, out int len);
+        int cp = decoder.Decode(index, out int len);
         LineBreakClass cls = ClassOf(cp, in options, out byte flags, out bool sa);
         bool zwj = cls == LineBreakClass.ZWJ;
         if (cls is LineBreakClass.CM or LineBreakClass.ZWJ)
@@ -547,9 +548,9 @@ internal ref struct LineBreakScanner
         if (cls is not (LineBreakClass.BK or LineBreakClass.CR or LineBreakClass.LF
             or LineBreakClass.NL or LineBreakClass.SP or LineBreakClass.ZW))
         {
-            while (end < text.Length)
+            while (end < decoder.Length)
             {
-                int cp2 = Decode(text, end, out int len2);
+                int cp2 = decoder.Decode(end, out int len2);
                 LineBreakClass res2 = ClassOf(cp2, in options, out _, out _);
                 if (res2 is LineBreakClass.CM or LineBreakClass.ZWJ)
                 {
@@ -586,9 +587,9 @@ internal ref struct LineBreakScanner
     private void LoadRun(int start)
     {
         int end = start;
-        while (end < _text.Length)
+        while (end < _decoder.Length)
         {
-            int cp = Decode(_text, end, out int len);
+            int cp = _decoder.Decode(end, out int len);
             if ((LineBreakClass)(byte)LineBreakData.Lookup(cp) != LineBreakClass.SA)
             {
                 break;
@@ -598,11 +599,15 @@ internal ref struct LineBreakScanner
 
         int length = end - start;
         ReturnBuffer();
+        if (!_decoder.TryGetCharRun(start, length, out ReadOnlySpan<char> chars))
+        {
+            return;
+        }
         _runBuffer = ArrayPool<bool>.Shared.Rent(length);
         Array.Clear(_runBuffer, 0, length);
         _runStart = start;
         _runEnd = end;
-        _options.ComplexContextResolver!.Resolve(_text.Slice(start, length), _runBuffer.AsSpan(0, length));
+        _options.ComplexContextResolver!.Resolve(chars, _runBuffer.AsSpan(0, length));
     }
 
     private void ReturnBuffer()
@@ -615,19 +620,6 @@ internal ref struct LineBreakScanner
     }
 
     public void Dispose() => ReturnBuffer();
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static int Decode(ReadOnlySpan<char> text, int index, out int length)
-    {
-        char c = text[index];
-        if (char.IsHighSurrogate(c) && index + 1 < text.Length && char.IsLowSurrogate(text[index + 1]))
-        {
-            length = 2;
-            return char.ConvertToUtf32(c, text[index + 1]);
-        }
-        length = 1;
-        return c;
-    }
 
     private readonly struct Eff
     {
