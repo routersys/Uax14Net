@@ -12,5 +12,7 @@ public readonly struct LineBreakOptions
 
     public Func<int, LineBreakClass?>? ClassOverride { get; init; }
 
+    public IComplexContextResolver? ComplexContextResolver { get; init; }
+
     public static LineBreakOptions Default => default;
 }
