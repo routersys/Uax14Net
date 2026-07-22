@@ -3,6 +3,14 @@ using System.Diagnostics;
 using System.Text;
 using Uax14Net;
 
+try
+{
+    Console.OutputEncoding = Encoding.UTF8;
+}
+catch (Exception)
+{
+}
+
 if (args.Length > 0 && string.Equals(args[0], "bench", StringComparison.OrdinalIgnoreCase))
 {
     int runs = args.Length > 1 && int.TryParse(args[1], out int parsed) ? parsed : 20;
