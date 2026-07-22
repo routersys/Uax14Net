@@ -10,7 +10,7 @@ English | [日本語](https://github.com/routersys/Uax14Net/blob/main/README.ja.
 
 A pure C# implementation of the [Unicode Line Breaking Algorithm](https://www.unicode.org/reports/tr14/) defined by Unicode Standard Annex #14.
 It determines where a line of Unicode text may be broken and where a break is mandatory, conforming to Unicode 17.0.0 and UAX #14 Revision 55.
-The algorithm runs over a `ReadOnlySpan<char>` without a single managed allocation, so the garbage collector never observes the scan, and the library is annotated for Native AOT.
+The algorithm runs over UTF-16 or UTF-8 text without a single managed allocation, so the garbage collector never observes the scan, and the library is annotated for Native AOT.
 Correctness is not asserted from reading the specification: every boundary is compared against the official LineBreakTest.txt of Unicode 17.0.0.
 
 ---
@@ -31,6 +31,7 @@ Correctness is not asserted from reading the specification: every boundary is co
    - [Enumeration](#enumeration)
    - [Opportunities](#opportunities)
    - [Classes](#classes)
+   - [Tailoring](#tailoring)
 6. [Limitations](#limitations)
 7. [Notes](#notes)
 8. [Disclaimer](#disclaimer)
@@ -43,7 +44,7 @@ Correctness is not asserted from reading the specification: every boundary is co
 
 Uax14Net decides line break opportunities for Unicode text. It reports every position at which a line may be broken, and marks the positions where a break is mandated by a hard line break such as a line feed, a carriage return, a form feed or a next line character.
 
-The public surface is modern C#. Text is passed as `ReadOnlySpan<char>`, opportunities are produced by a `ref struct` enumerator so that a whole document can be scanned without heap traffic, each opportunity is a `readonly struct` carrying a UTF-16 offset and a kind, and the line breaking class of any code point is available through a single static method. The stateful scanner is not exposed.
+The public surface is modern C#. Text is passed as `ReadOnlySpan<char>` or as UTF-8 in a `ReadOnlySpan<byte>`, opportunities are produced by a `ref struct` enumerator so that a whole document can be scanned without heap traffic, each opportunity is a `readonly struct` carrying an offset and a kind, and the line breaking class of any code point is available through a single static method. Tailoring is carried by a `readonly struct` of options, and the resolution of the complex-context class is a public seam. The stateful scanner is not exposed.
 
 The full set of line breaking classes, together with the auxiliary properties the rules depend on, is compiled into a two-stage lookup trie at build time. A source generator reads the Unicode Character Database files supplied as additional files and emits the trie as static read-only data, so the classification carries no runtime parsing and no static initialisation cost.
 
@@ -90,7 +91,7 @@ Every code point is assigned one of the forty-nine line breaking classes of Unic
 
 The rules that depend on more than the class itself are supported in full. The East Asian width distinguishes the treatment of quotation marks in rule LB19a and of parentheses in rule LB30. The general category separates initial from final punctuation for the quotation rules LB15a, LB15b and LB19. The Brahmic classes drive the orthographic syllable rule LB28a, including the dotted circle. Regional indicators are paired by rule LB30a, emoji bases and modifiers are joined by rule LB30b, and the numeric rules LB23 through LB25 keep numbers and their prefixes, postfixes and separators together.
 
-The default resolution of the complex-context class is a distinct step, so that a language specific analyser can later replace it without touching the non-tailorable rules. The first release exposes only the default resolution.
+The classes resolved by rule LB1 are tailorable through `LineBreakOptions`. The strictness selects whether the conditional Japanese starter keeps small kana attached or allows a break before them, the ambiguous-width policy resolves ambiguous characters as alphabetic or ideographic, `WordBreakMode` offers break-all and keep-all, and a class-override delegate reassigns the line breaking class of any code point. The resolution of the complex-context class is a public seam: an `IComplexContextResolver` receives each maximal run of complex-context characters and reports the breaks within it, which lets a dictionary segmenter for Thai, Lao, Khmer or Burmese be plugged in. The default resolution, used when no resolver is supplied, assigns the combining mark or alphabetic class by general category and inserts no break inside such a run.
 
 ### 3. Combining marks, joiners and spaces
 
@@ -100,9 +101,9 @@ The zero width joiner prevents a break after itself under rule LB8a, which keeps
 
 ### 4. Zero allocation and the generated trie
 
-The scanner is a `ref struct`. Its entire state lives on the stack, the classification data is static read-only memory, and no array or object is allocated while a text is scanned. The classification is a two-stage trie whose blocks are deduplicated and emitted as a `ReadOnlySpan<byte>`, which the runtime serves directly from the assembly without a heap copy.
+The scanner is a `ref struct`. Its entire state lives on the stack, the classification data is static read-only memory, and no array or object is allocated while a text is scanned, whether the input is UTF-16 or UTF-8. The classification is a two-stage trie whose blocks are deduplicated and emitted as a `ReadOnlySpan<byte>`, which the runtime serves directly from the assembly without a heap copy. When a complex-context resolver is supplied, each run is handed to it through a pooled buffer; the default path allocates nothing.
 
-The absence of managed allocation is measured, not asserted. `GC.GetAllocatedBytesForCurrentThread` reports a delta of zero bytes across the enumeration of a multilingual sample and across the classification of every code point in the Unicode range.
+The absence of managed allocation is measured, not asserted. `GC.GetAllocatedBytesForCurrentThread` reports a delta of zero bytes across the enumeration of a multilingual sample on both the UTF-16 and the UTF-8 path, and across the classification of every code point in the Unicode range.
 
 ### 5. Conformance verification
 
@@ -114,7 +115,7 @@ The scanner is compared against the official LineBreakTest.txt of Unicode 17.0.0
 | Break and no-break at every boundary, including start and end of text | Exact |
 | Boundaries reported as UTF-16 offsets across the supplementary planes | Exact |
 
-The test project contains 43 tests and all of them pass. The conformance test alone drives all 19338 cases of the official file. The remaining tests cover the empty string, single characters, hard and mandatory breaks, the carriage-return line-feed pair, supplementary plane offsets, emoji zero-width-joiner sequences, regional indicator pairing, lone surrogates, the whole code space, and the absence of managed allocation.
+The test project contains 62 tests and all of them pass. The conformance test alone drives all 19338 cases of the official file, and a second test replays the whole corpus through the UTF-8 path and checks that its byte offsets agree with the UTF-16 offsets. The remaining tests cover the empty string, single characters, hard and mandatory breaks, the carriage-return line-feed pair, supplementary plane offsets, emoji zero-width-joiner sequences, regional indicator pairing, lone surrogates, the whole code space, the tailoring options, the complex-context resolver seam, and the absence of managed allocation on both the UTF-16 and the UTF-8 path.
 
 ### 6. Performance
 
@@ -163,12 +164,13 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 
 | Member | Description |
 |---|---|
-| `LineBreaker.Enumerate(ReadOnlySpan<char>)` | Returns a `ref struct` enumerator over the break opportunities of the text. |
-| `LineBreakEnumerator.GetEnumerator()` | Returns the enumerator itself, so it can be used directly in a `foreach`. |
-| `LineBreakEnumerator.MoveNext()` | Advances to the next opportunity and reports whether one is available. |
-| `LineBreakEnumerator.Current` | The opportunity at the current position. |
+| `LineBreaker.Enumerate(ReadOnlySpan<char>)` | Returns a `ref struct` enumerator over the break opportunities of UTF-16 text. |
+| `LineBreaker.Enumerate(ReadOnlySpan<char>, in LineBreakOptions)` | The same, with tailoring options. |
+| `LineBreaker.Enumerate(ReadOnlySpan<byte>)` | Enumerates UTF-8 text and reports byte offsets. |
+| `LineBreaker.Enumerate(ReadOnlySpan<byte>, in LineBreakOptions)` | The same, with tailoring options. |
+| `LineBreakEnumerator`, `Utf8LineBreakEnumerator` | The `ref struct` enumerators, with `GetEnumerator`, `MoveNext`, `Current` and `Dispose`. |
 
-The enumerator yields one opportunity per position at which a break is allowed or required. Positions where a break is prohibited are skipped. The final opportunity is at the offset equal to the length of the text and is always mandatory.
+The enumerator yields one opportunity per position at which a break is allowed or required. Positions where a break is prohibited are skipped. The final opportunity is at the offset equal to the length of the text and is always mandatory. The UTF-16 enumerator reports UTF-16 offsets; the UTF-8 enumerator reports byte offsets. Invalid UTF-8 is decoded as the replacement character.
 
 ### Opportunities
 
@@ -189,12 +191,27 @@ The enumerator yields one opportunity per position at which a break is allowed o
 
 `GetLineBreakClass` returns the property value as recorded in the Unicode Character Database, before the resolution of rule LB1. A code point outside the Unicode range resolves to the unknown class.
 
+### Tailoring
+
+`LineBreakOptions` is a `readonly struct` with `init` accessors; `LineBreakOptions.Default` is the plain UAX #14 default that the conformance suite verifies.
+
+| Member | Default | Description |
+|---|---|---|
+| `Strictness` | `Strict` | `Strict` keeps small kana attached as non-starters; `Normal` resolves the conditional Japanese starter to ideographic and allows a break before small kana. |
+| `WordBreak` | `Normal` | `BreakAll` allows a break at every position the non-tailorable rules permit; `KeepAll` suppresses the break between two ideographic characters. |
+| `AmbiguousWidth` | `Alphabetic` | Resolves the ambiguous class to alphabetic or to ideographic. |
+| `ClassOverride` | `null` | A delegate `int -> LineBreakClass?` that reassigns the line breaking class of a code point before rule LB1. |
+| `ComplexContextResolver` | `null` | An `IComplexContextResolver` that segments runs of complex-context characters. |
+
+`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)` is called once per maximal run of complex-context characters. Setting `breakBefore[i]` allows a break before `run[i]`. The engine ignores a break the non-tailorable rules forbid, so a resolver cannot produce a non-conforming result. A resolver applies to UTF-16 input; on UTF-8 input the default resolution is used.
+
 ---
 
 ## Limitations
 
 - Measuring the width of text, choosing the break that fits a given line width, rendering, hyphenation and language specific dictionary segmentation are outside the scope of this library. It reports break opportunities; the choice of where to break for a particular width belongs to the layout engine.
-- The complex-context class is resolved by the default rule of LB1, which assigns the combining mark or the alphabetic class by general category and inserts no break inside a run of such characters other than at spaces. A dictionary based segmentation of Thai, Lao, Khmer, Burmese or similar scripts is not performed. The resolution is a distinct internal step so that such an analyser can be added later.
+- No dictionary for the complex-context scripts is bundled. Without a resolver, Thai, Lao, Khmer, Burmese and similar scripts break only at spaces, which is the UAX #14 default. A dictionary segmenter can be supplied through `IComplexContextResolver`; the library provides the seam, not the dictionary, and the seam applies to UTF-16 input.
+- Text is processed as a whole span. Incremental line breaking across separately supplied chunks is not provided, because the lookahead of several rules crosses the chunk boundary.
 - The class assignments and the rules track Unicode 17.0.0 and UAX #14 Revision 55. A different Unicode version requires regenerating the trie from the corresponding data files.
 - Building from source requires the Unicode data files. Without `reference/data` the source generator cannot build the trie and the conformance test cannot execute.
 - The sample application under `Uax14Net.Examples` writes to the console and therefore allocates managed memory. The zero-allocation guarantee applies to the library.
@@ -203,9 +220,9 @@ The enumerator yields one opportunity per position at which a break is allowed o
 
 ## Notes
 
-- Input encoding: the scanner operates on UTF-16 and reports offsets as UTF-16 code unit indices. A surrogate pair is a single scalar value at the offset of its high surrogate, and a lone surrogate is treated as a single unit of the surrogate class.
+- Input encoding: UTF-16 input reports UTF-16 code unit offsets, and UTF-8 input reports byte offsets. A surrogate pair is a single scalar value at the offset of its high surrogate, a lone surrogate is treated as a single unit of the surrogate class, and an invalid UTF-8 sequence is decoded as one replacement character.
 - Determinism: the scan produces identical output across repeated runs and holds no state between calls. Because the enumerator is a `ref struct` over a caller-owned span, separate enumerations are independent and no instance is shared.
-- Resolution seam: rule LB1 resolution is a single method separate from the rule engine, which keeps the non-tailorable rules intact while allowing the complex-context resolution to be replaced in a future release.
+- Resolution seam: rule LB1 resolution is separate from the rule engine, so the tailoring options and the complex-context resolver change class assignments and interior breaks without touching the non-tailorable rules.
 - Native AOT: the library sets `IsAotCompatible`, which enables the trim, single-file and AOT analyzers. `publish-aot.bat` publishes the sample application for `win-x64` and requires the MSVC toolset for the native linker.
 - Regenerating reference data: `reference/build.sh` and `reference/build.bat` download the Unicode 17.0.0 data files, verify their version header, and write them to `reference/data`. That directory is excluded from version control.
 
