@@ -133,7 +133,12 @@ Windows 11 上の 13th Gen Intel Core i7-1360P で、サンプルアプリケー
 
 <!-- BENCHMARK:CI:BEGIN -->
 
-性能計測ワークフローはまだこのリポジトリの計測値を公開していません。
+GitHub Actions の `windows-latest` ランナー (AMD64 Family 25 Model 1 Stepping 1, AuthenticAMD) で CI が計測。NativeAOT で発行し、630784 コードポイントの多言語コーパスに対する 20 回中の最良値。2026-07-22 に コミット `862baed` で記録。
+
+| 指標 | NativeAOT |
+|---|---:|
+| スループット | 47.5 MB/s |
+| コードポイント毎の時間 | 41.18 ns |
 
 <!-- BENCHMARK:CI:END -->
 
