@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
+using Uax14Net.SourceGenerator.Diagnostics;
 
 namespace Uax14Net.SourceGenerator;
 
@@ -17,22 +18,6 @@ public sealed class LineBreakGenerator : IIncrementalGenerator
         "emoji-data.txt",
         "DerivedGeneralCategory.txt"
     };
-
-    private static readonly DiagnosticDescriptor MissingData = new(
-        "UAX14001",
-        "Unicode reference data not found",
-        "Required Unicode data file '{0}' was not supplied as an AdditionalFile. Run reference/build.sh or reference/build.bat to download the Unicode 17.0.0 data.",
-        "Uax14Net",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
-    private static readonly DiagnosticDescriptor DataError = new(
-        "UAX14002",
-        "Unicode reference data could not be parsed",
-        "The Unicode data could not be parsed: {0}",
-        "Uax14Net",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -68,7 +53,7 @@ public sealed class LineBreakGenerator : IIncrementalGenerator
         {
             if (Find(files, name) is null)
             {
-                context.ReportDiagnostic(Diagnostic.Create(MissingData, Location.None, name));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ReferenceDataNotFound, Location.None, name));
                 return;
             }
         }
@@ -80,7 +65,7 @@ public sealed class LineBreakGenerator : IIncrementalGenerator
         }
         catch (Exception ex)
         {
-            context.ReportDiagnostic(Diagnostic.Create(DataError, Location.None, ex.Message));
+            context.ReportDiagnostic(Diagnostic.Create(Descriptors.ReferenceDataParseError, Location.None, ex.Message));
             return;
         }
 
