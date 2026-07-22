@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace Uax14Net;
@@ -10,6 +11,11 @@ internal ref struct LineBreakScanner
     private readonly ReadOnlySpan<char> _text;
     private readonly LineBreakOptions _options;
     private int _index;
+
+    private bool _curSa;
+    private int _runStart;
+    private int _runEnd;
+    private bool[]? _runBuffer;
 
     private LineBreakClass _curCls;
     private byte _curFlags;
@@ -50,6 +56,10 @@ internal ref struct LineBreakScanner
         _piQuote = false;
         _started = false;
         _emittedEot = false;
+        _curSa = false;
+        _runStart = 0;
+        _runEnd = 0;
+        _runBuffer = null;
 
         if (text.Length == 0)
         {
@@ -58,6 +68,10 @@ internal ref struct LineBreakScanner
         }
 
         Eff first = ReadEffective(_text, 0, in _options);
+        if (first.Sa && _options.ComplexContextResolver is not null)
+        {
+            LoadRun(0);
+        }
         Consume(first, sotLeft: true);
         _index = first.End;
         _started = true;
@@ -88,6 +102,10 @@ internal ref struct LineBreakScanner
 
         Eff n = ReadEffective(_text, _index, in _options);
         position = _index;
+        if (n.Sa && !_curSa && _options.ComplexContextResolver is not null)
+        {
+            LoadRun(position);
+        }
         action = Decide(n);
         Consume(n, sotLeft: false);
         _index = n.End;
@@ -145,6 +163,11 @@ internal ref struct LineBreakScanner
         if (_options.WordBreak == WordBreakMode.BreakAll)
         {
             return BreakAction.Allowed;
+        }
+
+        if (_curSa && n.Sa && _runBuffer is not null && _index >= _runStart && _index < _runEnd)
+        {
+            return _runBuffer[_index - _runStart] ? BreakAction.Allowed : BreakAction.Prohibited;
         }
 
         if (next == LineBreakClass.GL
@@ -493,6 +516,7 @@ internal ref struct LineBreakScanner
         _curFlags = e.Flags;
         _curAk = ak;
         _afterZwj = e.Zwj;
+        _curSa = e.Sa;
     }
 
     private static bool IsLb15bFollower(LineBreakClass c)
@@ -512,7 +536,7 @@ internal ref struct LineBreakScanner
         }
 
         int cp = Decode(text, index, out int len);
-        LineBreakClass cls = ClassOf(cp, in options, out byte flags);
+        LineBreakClass cls = ClassOf(cp, in options, out byte flags, out bool sa);
         bool zwj = cls == LineBreakClass.ZWJ;
         if (cls is LineBreakClass.CM or LineBreakClass.ZWJ)
         {
@@ -526,7 +550,7 @@ internal ref struct LineBreakScanner
             while (end < text.Length)
             {
                 int cp2 = Decode(text, end, out int len2);
-                LineBreakClass res2 = ClassOf(cp2, in options, out _);
+                LineBreakClass res2 = ClassOf(cp2, in options, out _, out _);
                 if (res2 is LineBreakClass.CM or LineBreakClass.ZWJ)
                 {
                     end += len2;
@@ -539,14 +563,15 @@ internal ref struct LineBreakScanner
             }
         }
 
-        return new Eff(cls, flags, cp, end, zwj);
+        return new Eff(cls, flags, cp, end, zwj, sa);
     }
 
-    private static LineBreakClass ClassOf(int codePoint, in LineBreakOptions options, out byte flags)
+    private static LineBreakClass ClassOf(int codePoint, in LineBreakOptions options, out byte flags, out bool sa)
     {
         ushort v = (ushort)LineBreakData.Lookup(codePoint);
         LineBreakClass raw = (LineBreakClass)(byte)v;
         flags = (byte)(v >> 8);
+        sa = raw == LineBreakClass.SA;
         if (options.ClassOverride is { } classOverride)
         {
             LineBreakClass? overridden = classOverride(codePoint);
@@ -557,6 +582,39 @@ internal ref struct LineBreakScanner
         }
         return LineBreakResolver.Resolve(raw, flags, in options);
     }
+
+    private void LoadRun(int start)
+    {
+        int end = start;
+        while (end < _text.Length)
+        {
+            int cp = Decode(_text, end, out int len);
+            if ((LineBreakClass)(byte)LineBreakData.Lookup(cp) != LineBreakClass.SA)
+            {
+                break;
+            }
+            end += len;
+        }
+
+        int length = end - start;
+        ReturnBuffer();
+        _runBuffer = ArrayPool<bool>.Shared.Rent(length);
+        Array.Clear(_runBuffer, 0, length);
+        _runStart = start;
+        _runEnd = end;
+        _options.ComplexContextResolver!.Resolve(_text.Slice(start, length), _runBuffer.AsSpan(0, length));
+    }
+
+    private void ReturnBuffer()
+    {
+        if (_runBuffer is not null)
+        {
+            ArrayPool<bool>.Shared.Return(_runBuffer);
+            _runBuffer = null;
+        }
+    }
+
+    public void Dispose() => ReturnBuffer();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static int Decode(ReadOnlySpan<char> text, int index, out int length)
@@ -578,15 +636,17 @@ internal ref struct LineBreakScanner
         public readonly int Cp;
         public readonly int End;
         public readonly bool Zwj;
+        public readonly bool Sa;
         public readonly bool Exists;
 
-        public Eff(LineBreakClass cls, byte flags, int cp, int end, bool zwj)
+        public Eff(LineBreakClass cls, byte flags, int cp, int end, bool zwj, bool sa)
         {
             Cls = cls;
             Flags = flags;
             Cp = cp;
             End = end;
             Zwj = zwj;
+            Sa = sa;
             Exists = true;
         }
 
@@ -597,6 +657,7 @@ internal ref struct LineBreakScanner
             Cp = -1;
             End = end;
             Zwj = false;
+            Sa = false;
             Exists = false;
         }
 

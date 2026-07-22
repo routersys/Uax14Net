@@ -28,6 +28,8 @@ public ref struct LineBreakEnumerator
 
     public readonly LineBreakEnumerator GetEnumerator() => this;
 
+    public void Dispose() => _scanner.Dispose();
+
     public bool MoveNext()
     {
         while (_scanner.TryNext(out int position, out BreakAction action))
