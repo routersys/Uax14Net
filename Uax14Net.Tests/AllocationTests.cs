@@ -42,10 +42,36 @@ public class AllocationTests
         Assert.Equal(0, after - before);
     }
 
+    [Fact]
+    public void Utf8EnumerationDoesNotAllocate()
+    {
+        byte[] utf8 = System.Text.Encoding.UTF8.GetBytes(Sample);
+        _ = Consume(utf8);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 256; i++)
+        {
+            _ = Consume(utf8);
+        }
+        long after = GC.GetAllocatedBytesForCurrentThread();
+
+        Assert.Equal(0, after - before);
+    }
+
     private static int Consume(string text)
     {
         int sum = 0;
         foreach (LineBreakOpportunity op in LineBreaker.Enumerate(text))
+        {
+            sum += op.Position + (int)op.Kind;
+        }
+        return sum;
+    }
+
+    private static int Consume(byte[] utf8)
+    {
+        int sum = 0;
+        foreach (LineBreakOpportunity op in LineBreaker.Enumerate(utf8.AsSpan()))
         {
             sum += op.Position + (int)op.Kind;
         }
