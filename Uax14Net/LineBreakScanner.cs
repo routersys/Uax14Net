@@ -8,6 +8,7 @@ internal ref struct LineBreakScanner
     private const int DottedCircle = 0x25CC;
 
     private readonly ReadOnlySpan<char> _text;
+    private readonly LineBreakOptions _options;
     private int _index;
 
     private LineBreakClass _curCls;
@@ -29,9 +30,10 @@ internal ref struct LineBreakScanner
     private bool _started;
     private bool _emittedEot;
 
-    public LineBreakScanner(ReadOnlySpan<char> text)
+    public LineBreakScanner(ReadOnlySpan<char> text, LineBreakOptions options)
     {
         _text = text;
+        _options = options;
         _index = 0;
         _curCls = LineBreakClass.XX;
         _curFlags = 0;
@@ -55,7 +57,7 @@ internal ref struct LineBreakScanner
             return;
         }
 
-        Eff first = ReadEffective(_text, 0);
+        Eff first = ReadEffective(_text, 0, in _options);
         Consume(first, sotLeft: true);
         _index = first.End;
         _started = true;
@@ -84,7 +86,7 @@ internal ref struct LineBreakScanner
             return false;
         }
 
-        Eff n = ReadEffective(_text, _index);
+        Eff n = ReadEffective(_text, _index, in _options);
         position = _index;
         action = Decide(n);
         Consume(n, sotLeft: false);
@@ -139,6 +141,12 @@ internal ref struct LineBreakScanner
         {
             return BreakAction.Prohibited;
         }
+
+        if (_options.WordBreak == WordBreakMode.BreakAll)
+        {
+            return BreakAction.Allowed;
+        }
+
         if (next == LineBreakClass.GL
             && cur is not (LineBreakClass.SP or LineBreakClass.BA or LineBreakClass.HY or LineBreakClass.HH))
         {
@@ -159,7 +167,7 @@ internal ref struct LineBreakScanner
         }
         if (next == LineBreakClass.QU && (nextFlags & LineBreakData.FlagFinalPunctuation) != 0)
         {
-            Eff after = ReadEffective(_text, n.End);
+            Eff after = ReadEffective(_text, n.End, in _options);
             if (!after.Exists || IsLb15bFollower(after.Cls))
             {
                 return BreakAction.Prohibited;
@@ -167,7 +175,7 @@ internal ref struct LineBreakScanner
         }
         if (cur == LineBreakClass.SP && next == LineBreakClass.IS)
         {
-            Eff after = ReadEffective(_text, n.End);
+            Eff after = ReadEffective(_text, n.End, in _options);
             if (after.Exists && after.Cls == LineBreakClass.NU)
             {
                 return BreakAction.Allowed;
@@ -205,7 +213,7 @@ internal ref struct LineBreakScanner
             {
                 return BreakAction.Prohibited;
             }
-            Eff after = ReadEffective(_text, n.End);
+            Eff after = ReadEffective(_text, n.End, in _options);
             if (!after.Exists || (after.Flags & LineBreakData.FlagEastAsian) == 0)
             {
                 return BreakAction.Prohibited;
@@ -334,7 +342,7 @@ internal ref struct LineBreakScanner
         }
         if (_curAk && nextAk)
         {
-            Eff after = ReadEffective(_text, n.End);
+            Eff after = ReadEffective(_text, n.End, in _options);
             if (after.Exists && after.Cls == LineBreakClass.VF)
             {
                 return BreakAction.Prohibited;
@@ -366,8 +374,18 @@ internal ref struct LineBreakScanner
             return BreakAction.Prohibited;
         }
 
+        if (_options.WordBreak == WordBreakMode.KeepAll && IsIdeographic(cur) && IsIdeographic(next))
+        {
+            return BreakAction.Prohibited;
+        }
+
         return BreakAction.Allowed;
     }
+
+    private static bool IsIdeographic(LineBreakClass c)
+        => c is LineBreakClass.ID or LineBreakClass.EB or LineBreakClass.EM
+            or LineBreakClass.H2 or LineBreakClass.H3 or LineBreakClass.JL
+            or LineBreakClass.JV or LineBreakClass.JT;
 
     private bool DecideNumbers(LineBreakClass cur, LineBreakClass next, Eff n)
     {
@@ -385,14 +403,14 @@ internal ref struct LineBreakScanner
         }
         if (cur is LineBreakClass.PO or LineBreakClass.PR && next == LineBreakClass.OP)
         {
-            Eff a = ReadEffective(_text, n.End);
+            Eff a = ReadEffective(_text, n.End, in _options);
             if (a.Exists && a.Cls == LineBreakClass.NU)
             {
                 return true;
             }
             if (a.Exists && a.Cls == LineBreakClass.IS)
             {
-                Eff b = ReadEffective(_text, a.End);
+                Eff b = ReadEffective(_text, a.End, in _options);
                 if (b.Exists && b.Cls == LineBreakClass.NU)
                 {
                     return true;
@@ -486,7 +504,7 @@ internal ref struct LineBreakScanner
     private static bool IsAk(LineBreakClass c, int cp)
         => c is LineBreakClass.AK or LineBreakClass.AS || cp == DottedCircle;
 
-    private static Eff ReadEffective(ReadOnlySpan<char> text, int index)
+    private static Eff ReadEffective(ReadOnlySpan<char> text, int index, in LineBreakOptions options)
     {
         if (index >= text.Length)
         {
@@ -494,11 +512,8 @@ internal ref struct LineBreakScanner
         }
 
         int cp = Decode(text, index, out int len);
-        ushort v = (ushort)LineBreakData.Lookup(cp);
-        LineBreakClass raw = (LineBreakClass)(byte)v;
-        byte flags = (byte)(v >> 8);
-        LineBreakClass cls = LineBreakResolver.Resolve(raw, flags);
-        bool zwj = raw == LineBreakClass.ZWJ;
+        LineBreakClass cls = ClassOf(cp, in options, out byte flags);
+        bool zwj = cls == LineBreakClass.ZWJ;
         if (cls is LineBreakClass.CM or LineBreakClass.ZWJ)
         {
             cls = LineBreakClass.AL;
@@ -511,13 +526,11 @@ internal ref struct LineBreakScanner
             while (end < text.Length)
             {
                 int cp2 = Decode(text, end, out int len2);
-                ushort v2 = (ushort)LineBreakData.Lookup(cp2);
-                LineBreakClass raw2 = (LineBreakClass)(byte)v2;
-                LineBreakClass res2 = LineBreakResolver.Resolve(raw2, (byte)(v2 >> 8));
+                LineBreakClass res2 = ClassOf(cp2, in options, out _);
                 if (res2 is LineBreakClass.CM or LineBreakClass.ZWJ)
                 {
                     end += len2;
-                    zwj = raw2 == LineBreakClass.ZWJ;
+                    zwj = res2 == LineBreakClass.ZWJ;
                 }
                 else
                 {
@@ -527,6 +540,22 @@ internal ref struct LineBreakScanner
         }
 
         return new Eff(cls, flags, cp, end, zwj);
+    }
+
+    private static LineBreakClass ClassOf(int codePoint, in LineBreakOptions options, out byte flags)
+    {
+        ushort v = (ushort)LineBreakData.Lookup(codePoint);
+        LineBreakClass raw = (LineBreakClass)(byte)v;
+        flags = (byte)(v >> 8);
+        if (options.ClassOverride is { } classOverride)
+        {
+            LineBreakClass? overridden = classOverride(codePoint);
+            if (overridden.HasValue)
+            {
+                raw = overridden.Value;
+            }
+        }
+        return LineBreakResolver.Resolve(raw, flags, in options);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
