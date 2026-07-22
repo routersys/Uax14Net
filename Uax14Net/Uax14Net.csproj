@@ -43,7 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="..\reference\data\LineBreak.txt" Visible="false" />
+    <AdditionalFiles Include="..\reference\data\DerivedLineBreak.txt" Visible="false" />
     <AdditionalFiles Include="..\reference\data\EastAsianWidth.txt" Visible="false" />
     <AdditionalFiles Include="..\reference\data\emoji-data.txt" Visible="false" />
     <AdditionalFiles Include="..\reference\data\DerivedGeneralCategory.txt" Visible="false" />
