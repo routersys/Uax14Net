@@ -43,10 +43,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <AdditionalFiles Include="..\reference\data\DerivedLineBreak.txt" Visible="false" />
-    <AdditionalFiles Include="..\reference\data\EastAsianWidth.txt" Visible="false" />
-    <AdditionalFiles Include="..\reference\data\emoji-data.txt" Visible="false" />
-    <AdditionalFiles Include="..\reference\data\DerivedGeneralCategory.txt" Visible="false" />
+    <AdditionalFiles Include="..\reference\data\DerivedLineBreak.txt" Visible="false" Condition="Exists('..\reference\data\DerivedLineBreak.txt')" />
+    <AdditionalFiles Include="..\reference\data\EastAsianWidth.txt" Visible="false" Condition="Exists('..\reference\data\EastAsianWidth.txt')" />
+    <AdditionalFiles Include="..\reference\data\emoji-data.txt" Visible="false" Condition="Exists('..\reference\data\emoji-data.txt')" />
+    <AdditionalFiles Include="..\reference\data\DerivedGeneralCategory.txt" Visible="false" Condition="Exists('..\reference\data\DerivedGeneralCategory.txt')" />
   </ItemGroup>
 
   <ItemGroup>
