@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 import argparse
 import datetime
+import os
 import platform
 import subprocess
 import sys
 
 
 def measure(aot, runs):
+    aot = os.path.abspath(aot)
     result = subprocess.run(
         [aot, "bench", str(runs)],
         check=True,
