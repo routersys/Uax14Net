@@ -21,6 +21,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageTags>unicode;uax14;uax-14;line-breaking;line-break;linebreak;text-segmentation;text;native-aot;zero-allocation</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReleaseNotes>See https://github.com/routersys/Uax14Net/releases</PackageReleaseNotes>
   </PropertyGroup>
@@ -35,6 +36,7 @@
 
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\icon.png" Pack="true" PackagePath="\" />
     <None Include="..\.github\LICENSE\UnicodeDataFiles.txt" Pack="true" PackagePath="THIRD-PARTY-NOTICES\" />
   </ItemGroup>
 
