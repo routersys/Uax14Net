@@ -31,7 +31,7 @@ Unicode Standard Annex #14 が定める [Unicode 改行アルゴリズム](https
    - [列挙](#列挙)
    - [改行機会](#改行機会)
    - [クラス](#クラス)
-   - [Tailoring](#tailoring)
+   - [テーラリング](#テーラリング)
 6. [制限事項](#制限事項)
 7. [注記](#注記)
 8. [免責事項](#免責事項)
@@ -44,7 +44,7 @@ Unicode Standard Annex #14 が定める [Unicode 改行アルゴリズム](https
 
 Uax14Net は Unicode テキストの改行機会を判定します。行を折り返せる位置をすべて報告し、改行・復帰・改ページ・ネクストラインといった強制改行が改行を要求する位置を必須として印します。
 
-公開面はモダンな C# です。テキストは `ReadOnlySpan<char>` として、あるいは UTF-8 の `ReadOnlySpan<byte>` として渡します。改行機会は `ref struct` の列挙子が生成するため、文書全体をヒープ負荷なしで走査できます。各改行機会はオフセットと種別を保持する `readonly struct` です。任意のコードポイントの改行クラスは静的メソッド一つで取得できます。tailoring は `readonly struct` のオプションが担い、複合文脈クラスの解決は公開された接合点です。状態を持つ走査器は公開しません。
+公開面はモダンな C# です。テキストは `ReadOnlySpan<char>` として、あるいは UTF-8 の `ReadOnlySpan<byte>` として渡します。改行機会は `ref struct` の列挙子が生成するため、文書全体をヒープ負荷なしで走査できます。各改行機会はオフセットと種別を保持する `readonly struct` です。任意のコードポイントの改行クラスは静的メソッド一つで取得できます。テーラリングは `readonly struct` のオプションが担い、複合文脈クラスの解決は公開された接合点です。状態を持つ走査器は公開しません。
 
 改行クラスの全体と、規則が依存する補助プロパティは、ビルド時に二段のルックアップトライへ格納します。ソースジェネレーターが追加ファイルとして与えられた Unicode Character Database のファイルを読み、トライを静的な読み取り専用データとして出力します。分類は実行時の解析を伴わず、静的初期化のコストもありません。
 
@@ -91,7 +91,7 @@ dotnet add package Uax14Net
 
 クラスだけでは決まらない規則も完全に実装します。East Asian Width は規則 LB19a の引用符と規則 LB30 の括弧の扱いを分けます。一般カテゴリは引用符の規則 LB15a・LB15b・LB19 で始め括弧と終わり括弧を区別します。Brahmic 系のクラスは点線円を含む正書法音節の規則 LB28a を駆動します。Regional Indicator は規則 LB30a で対にし、Emoji Base と Emoji Modifier は規則 LB30b で結び、数値の規則 LB23 から LB25 は数と前置・後置・区切りをまとめます。
 
-規則 LB1 が解決するクラスは `LineBreakOptions` で tailoring できます。厳密度は条件付き日本語開始文字が小書き仮名を密着させるか、その前で改行を許すかを選びます。曖昧幅の方針は曖昧クラスを英字と表意のどちらへ解決するかを決めます。`WordBreakMode` は break-all と keep-all を提供します。クラス上書きの委譲は任意のコードポイントの改行クラスを再割り当てします。複合文脈クラスの解決は公開された接合点で、`IComplexContextResolver` が複合文脈文字の各極大区間を受け取り、その内部の改行を報告します。これによりタイ・ラオ・クメール・ビルマの辞書分割器を差し込めます。Resolver を与えない既定解決は、一般カテゴリにより結合印か英字を割り当て、そうした区間の内部には改行を挿入しません。
+規則 LB1 が解決するクラスは `LineBreakOptions` でテーラリングできます。厳密度は条件付き日本語開始文字が小書き仮名を密着させるか、その前で改行を許すかを選びます。曖昧幅の方針は曖昧クラスを英字と表意のどちらへ解決するかを決めます。`WordBreakMode` は break-all と keep-all を提供します。クラス上書きの委譲は任意のコードポイントの改行クラスを再割り当てします。複合文脈クラスの解決は公開された接合点で、`IComplexContextResolver` が複合文脈文字の各極大区間を受け取り、その内部の改行を報告します。これによりタイ・ラオ・クメール・ビルマの辞書分割器を差し込めます。Resolver を与えない既定解決は、一般カテゴリにより結合印か英字を割り当て、そうした区間の内部には改行を挿入しません。
 
 ### 3. 結合文字・接合子・空白
 
@@ -115,7 +115,7 @@ Zero Width Joiner は規則 LB8a によりその後の改行を禁止し、Emoji
 | 先頭と末尾を含む全境界の改行・非改行 | 完全一致 |
 | 追加面を跨ぐ UTF-16 オフセットとして報告する境界 | 完全一致 |
 
-テストプロジェクトは 62 個のテストを含み、すべて合格します。適合テストだけで公式ファイルの全 19338 ケースを検査し、別のテストがコーパス全体を UTF-8 経路で再生して、そのバイトオフセットが UTF-16 オフセットと一致することを確認します。残るテストは、空文字列・単一文字・強制改行と必須改行・復帰改行の対・追加面のオフセット・Emoji の Zero Width Joiner 列・Regional Indicator の対・孤立サロゲート・全コード空間・tailoring オプション・複合文脈 Resolver の接合点・UTF-16 と UTF-8 両経路でのマネージド割り当ての不在を網羅します。
+テストプロジェクトは 62 個のテストを含み、すべて合格します。適合テストだけで公式ファイルの全 19338 ケースを検査し、別のテストがコーパス全体を UTF-8 経路で再生して、そのバイトオフセットが UTF-16 オフセットと一致することを確認します。残るテストは、空文字列・単一文字・強制改行と必須改行・復帰改行の対・追加面のオフセット・Emoji の Zero Width Joiner 列・Regional Indicator の対・孤立サロゲート・全コード空間・テーラリングオプション・複合文脈 Resolver の接合点・UTF-16 と UTF-8 両経路でのマネージド割り当ての不在を網羅します。
 
 ### 6. 性能
 
@@ -170,9 +170,9 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 | メンバー | 説明 |
 |---|---|
 | `LineBreaker.Enumerate(ReadOnlySpan<char>)` | UTF-16 テキストの改行機会を走査する `ref struct` 列挙子を返します。 |
-| `LineBreaker.Enumerate(ReadOnlySpan<char>, in LineBreakOptions)` | tailoring オプション付きで同上。 |
+| `LineBreaker.Enumerate(ReadOnlySpan<char>, in LineBreakOptions)` | テーラリングオプション付きで同上。 |
 | `LineBreaker.Enumerate(ReadOnlySpan<byte>)` | UTF-8 テキストを走査し、バイトオフセットを報告します。 |
-| `LineBreaker.Enumerate(ReadOnlySpan<byte>, in LineBreakOptions)` | tailoring オプション付きで同上。 |
+| `LineBreaker.Enumerate(ReadOnlySpan<byte>, in LineBreakOptions)` | テーラリングオプション付きで同上。 |
 | `LineBreakEnumerator`、`Utf8LineBreakEnumerator` | `ref struct` の列挙子。`GetEnumerator`・`MoveNext`・`Current`・`Dispose` を持ちます。 |
 
 列挙子は改行を許すか要求する位置ごとに機会を一つ返します。改行が禁止される位置は飛ばします。最後の機会はテキスト長に等しいオフセットにあり、常に必須です。UTF-16 の列挙子は UTF-16 オフセットを、UTF-8 の列挙子はバイトオフセットを報告します。不正な UTF-8 は置換文字として復号します。
@@ -196,19 +196,19 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 
 `GetLineBreakClass` は Unicode Character Database に記録されたプロパティ値を、規則 LB1 の解決前の状態で返します。Unicode 範囲外のコードポイントは不明クラスへ解決します。
 
-### Tailoring
+### テーラリング
 
 `LineBreakOptions` は `init` アクセサーを持つ `readonly struct` です。`LineBreakOptions.Default` は適合テストが検証する素の UAX #14 既定です。
 
 | メンバー | 既定 | 説明 |
 |---|---|---|
 | `Strictness` | `Strict` | `Strict` は小書き仮名を非開始文字として密着させ、`Normal` は条件付き日本語開始文字を表意へ解決し小書き仮名の前で改行を許します。 |
-| `WordBreak` | `Normal` | `BreakAll` は非tailorable規則が許す位置すべてで改行を許し、`KeepAll` は表意文字同士の改行を抑止します。 |
+| `WordBreak` | `Normal` | `BreakAll` はテーラリング不可能な規則が許す位置すべてで改行を許し、`KeepAll` は表意文字同士の改行を抑止します。 |
 | `AmbiguousWidth` | `Alphabetic` | 曖昧クラスを英字と表意のどちらへ解決するかを選びます。 |
 | `ClassOverride` | `null` | 規則 LB1 の前にコードポイントの改行クラスを再割り当てする委譲 `int -> LineBreakClass?`。 |
 | `ComplexContextResolver` | `null` | 複合文脈文字の区間を分割する `IComplexContextResolver`。 |
 
-`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)` は複合文脈文字の極大区間ごとに一度呼ばれます。`breakBefore[i]` を立てると `run[i]` の前での改行を許します。非tailorable規則が禁じる改行はエンジンが無視するため、Resolver は非適合な結果を生めません。Resolver は UTF-16 入力に適用され、UTF-8 入力では既定解決を用います。
+`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)` は複合文脈文字の極大区間ごとに一度呼ばれます。`breakBefore[i]` を立てると `run[i]` の前での改行を許します。テーラリング不可能な規則が禁じる改行はエンジンが無視するため、Resolver は非適合な結果を生めません。Resolver は UTF-16 入力に適用され、UTF-8 入力では既定解決を用います。
 
 ---
 
@@ -227,7 +227,7 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 
 - 入力エンコーディング: UTF-16 入力は UTF-16 コード単位のオフセットを、UTF-8 入力はバイトオフセットを報告します。サロゲート対は高位サロゲートのオフセットにある単一のスカラー値で、孤立サロゲートはサロゲートクラスの単一の単位として扱い、不正な UTF-8 列は一つの置換文字として復号します。
 - 決定性: 走査は繰り返し実行しても同一の出力を生成し、呼び出し間で状態を保持しません。列挙子は呼び出し側が所有するスパン上の `ref struct` のため、別々の列挙は独立し、インスタンスを共有しません。
-- 解決の接合点: 規則 LB1 の解決は規則エンジンから分離しており、tailoring オプションと複合文脈 Resolver は非tailorable規則へ触れずにクラス割り当てと区間内部の改行を変えます。
+- 解決の接合点: 規則 LB1 の解決は規則エンジンから分離しており、テーラリングオプションと複合文脈 Resolver はテーラリング不可能な規則へ触れずにクラス割り当てと区間内部の改行を変えます。
 - Native AOT: ライブラリは `IsAotCompatible` を設定し、trim・単一ファイル・AOT の各アナライザーを有効にします。`publish-aot.bat` はサンプルアプリケーションを `win-x64` 向けに発行し、ネイティブリンカーに MSVC ツールセットを必要とします。
 - 参照データの再生成: `reference/build.sh` と `reference/build.bat` は Unicode 17.0.0 のデータファイルをダウンロードし、バージョンヘッダーを検証して `reference/data` へ書き出します。このディレクトリはバージョン管理から除外します。
 
