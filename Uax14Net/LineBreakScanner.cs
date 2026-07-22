@@ -486,16 +486,6 @@ internal ref struct LineBreakScanner
     private static bool IsAk(LineBreakClass c, int cp)
         => c is LineBreakClass.AK or LineBreakClass.AS || cp == DottedCircle;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static LineBreakClass Resolve(LineBreakClass raw, byte flags)
-        => raw switch
-        {
-            LineBreakClass.AI or LineBreakClass.SG or LineBreakClass.XX => LineBreakClass.AL,
-            LineBreakClass.CJ => LineBreakClass.NS,
-            LineBreakClass.SA => (flags & LineBreakData.FlagSaCombiningBase) != 0 ? LineBreakClass.CM : LineBreakClass.AL,
-            _ => raw
-        };
-
     private static Eff ReadEffective(ReadOnlySpan<char> text, int index)
     {
         if (index >= text.Length)
@@ -507,7 +497,7 @@ internal ref struct LineBreakScanner
         ushort v = (ushort)LineBreakData.Lookup(cp);
         LineBreakClass raw = (LineBreakClass)(byte)v;
         byte flags = (byte)(v >> 8);
-        LineBreakClass cls = Resolve(raw, flags);
+        LineBreakClass cls = LineBreakResolver.Resolve(raw, flags);
         bool zwj = raw == LineBreakClass.ZWJ;
         if (cls is LineBreakClass.CM or LineBreakClass.ZWJ)
         {
@@ -523,7 +513,7 @@ internal ref struct LineBreakScanner
                 int cp2 = Decode(text, end, out int len2);
                 ushort v2 = (ushort)LineBreakData.Lookup(cp2);
                 LineBreakClass raw2 = (LineBreakClass)(byte)v2;
-                LineBreakClass res2 = Resolve(raw2, (byte)(v2 >> 8));
+                LineBreakClass res2 = LineBreakResolver.Resolve(raw2, (byte)(v2 >> 8));
                 if (res2 is LineBreakClass.CM or LineBreakClass.ZWJ)
                 {
                     end += len2;
