@@ -9,19 +9,15 @@ internal sealed class PairTableContexts
 {
     private const int Rows = 98;
     private const int Columns = 49;
-
-    private static readonly int[] KeyClasses =
-    {
-        (int)LineBreakClass.NU, (int)LineBreakClass.SY, (int)LineBreakClass.IS, (int)LineBreakClass.CL,
-        (int)LineBreakClass.CP, (int)LineBreakClass.OP, (int)LineBreakClass.PO, (int)LineBreakClass.PR,
-        (int)LineBreakClass.HY, (int)LineBreakClass.QU, (int)LineBreakClass.SP, (int)LineBreakClass.RI,
-        (int)LineBreakClass.AL, (int)LineBreakClass.ID, (int)LineBreakClass.ZW, (int)LineBreakClass.BK,
-        (int)LineBreakClass.GL, (int)LineBreakClass.WJ, (int)LineBreakClass.B2, (int)LineBreakClass.HL,
-        (int)LineBreakClass.EB, (int)LineBreakClass.EM, (int)LineBreakClass.AK, (int)LineBreakClass.VF
-    };
+    private const int DottedCircle = 0x25CC;
+    private const int Space = 0x20;
 
     private readonly List<int>[] _byClass = new List<int>[Columns];
     private readonly int[][] _anyGroup;
+    private readonly int[] _anyCodePoints;
+    private readonly int[] _populatedClasses;
+    private readonly Dictionary<int, LineBreakClass> _forced = new Dictionary<int, LineBreakClass>();
+    private readonly HashSet<int> _picked = new HashSet<int>();
     private CorpusRng _rng;
 
     public PairTableContexts(ulong seed)
@@ -34,10 +30,15 @@ internal sealed class PairTableContexts
 
         int[][] pool = RandomCorpus.BuildPool(6);
         _anyGroup = pool[..^1];
+        var anyCodePoints = new List<int>();
         foreach (int[] group in _anyGroup)
         {
             foreach (int cp in group)
             {
+                if (cp != DottedCircle && cp != Space && !IsSurrogate(cp))
+                {
+                    anyCodePoints.Add(cp);
+                }
                 ushort entry = LineBreakData.Lookup(cp);
                 LineBreakClass cls = LineBreakResolver.Resolve((LineBreakClass)(byte)entry, (byte)(entry >> 8), LineBreakOptions.Default);
                 if (cls == LineBreakClass.CM || cls == LineBreakClass.ZWJ)
@@ -47,12 +48,28 @@ internal sealed class PairTableContexts
                 _byClass[(int)cls].Add(cp);
             }
         }
-        _byClass[(int)LineBreakClass.AL].Add(0x25CC);
+        _byClass[(int)LineBreakClass.AL].Add(DottedCircle);
+        _anyCodePoints = anyCodePoints.ToArray();
+
+        var populated = new List<int>();
+        for (int i = 0; i < Columns; i++)
+        {
+            if (_byClass[i].Count > 0)
+            {
+                populated.Add(i);
+            }
+        }
+        _populatedClasses = populated.ToArray();
     }
 
-    public static int ActionAt(string text, int index, bool useTable)
+    public int ActionAt(string text, int index, bool useTable, in LineBreakOptions baseOptions)
     {
-        var scanner = new LineBreakScanner<Utf16Decoder>(new Utf16Decoder(text), LineBreakOptions.Default, useTable);
+        Dictionary<int, LineBreakClass> forced = _forced;
+        LineBreakOptions options = baseOptions with
+        {
+            ClassOverride = forced.Count == 0 ? null : codePoint => forced.TryGetValue(codePoint, out LineBreakClass cls) ? cls : null
+        };
+        var scanner = new LineBreakScanner<Utf16Decoder>(new Utf16Decoder(text), options, useTable);
         try
         {
             while (scanner.TryNext(out int position, out BreakAction action))
@@ -97,6 +114,8 @@ internal sealed class PairTableContexts
         int beforeSp = spaceRow ? row - Columns : -1;
         bool atStart = spaceRow && beforeSp == (int)LineBreakClass.XX;
 
+        _forced.Clear();
+        _picked.Clear();
         var text = new StringBuilder();
         if (!atStart)
         {
@@ -104,32 +123,62 @@ internal sealed class PairTableContexts
         }
         if (spaceRow && !atStart)
         {
-            AppendCodePoint(text, Pick(beforeSp));
+            AppendCodePoint(text, Pick(beforeSp, false));
         }
         if (spaceRow)
         {
             int spaces = 1 + _rng.Next(3);
             for (int i = 0; i < spaces; i++)
             {
-                AppendCodePoint(text, 0x20);
+                AppendCodePoint(text, Space);
             }
         }
         else
         {
-            AppendCodePoint(text, Pick(rowClass));
+            AppendCodePoint(text, Pick(rowClass, false));
         }
         index = text.Length;
-        AppendCodePoint(text, Pick(next));
+        AppendCodePoint(text, Pick(next, true));
         AppendRandom(text, 2);
         return text.ToString();
     }
 
-    public string DeriveSource(int samples)
+    public static char[] Agree(char[] first, char[] second)
     {
+        char[] table = new char[first.Length];
+        for (int i = 0; i < table.Length; i++)
+        {
+            table[i] = first[i] == second[i] ? first[i] : '3';
+        }
+        return table;
+    }
+
+    public static string ToSource(char[] table)
+    {
+        var source = new StringBuilder();
+        source.Append("using System;\n\nnamespace Uax14Net;\n\ninternal static class LineBreakPairTable\n{\n");
+        source.Append("    public const int Columns = 49;\n    public const int SpaceRowBase = 49;\n");
+        source.Append("    public const byte Digit = (byte)'0';\n\n    public static ReadOnlySpan<byte> Entries =>\n");
+        for (int row = 0; row < Rows; row++)
+        {
+            source.Append("        \"").Append(table, row * Columns, Columns).Append("\"u8");
+            source.Append(row < Rows - 1 ? " +\n" : ";\n");
+        }
+        source.Append("}\n");
+        return source.ToString();
+    }
+
+    public char[] DeriveTable(int samples)
+    {
+        LineBreakOptions options = LineBreakOptions.Default;
         char[] table = new char[Rows * Columns];
         Array.Fill(table, '3');
         for (int row = 0; row < Rows; row++)
         {
+            if (row == (int)LineBreakClass.AK || row == (int)LineBreakClass.AS)
+            {
+                continue;
+            }
             for (int next = 0; next < Columns; next++)
             {
                 if (!IsBuildable(row, next))
@@ -142,7 +191,7 @@ internal sealed class PairTableContexts
                 for (int sample = 0; sample < samples && !varies; sample++)
                 {
                     string text = Build(row, next, out int index);
-                    int result = ActionAt(text, index, false);
+                    int result = ActionAt(text, index, false, in options);
                     if (result < 0)
                     {
                         continue;
@@ -164,18 +213,10 @@ internal sealed class PairTableContexts
             }
         }
 
-        var source = new StringBuilder();
-        source.Append("using System;\n\nnamespace Uax14Net;\n\ninternal static class LineBreakPairTable\n{\n");
-        source.Append("    public const int Columns = 49;\n    public const int SpaceRowBase = 49;\n");
-        source.Append("    public const byte Digit = (byte)'0';\n\n    public static ReadOnlySpan<byte> Entries =>\n");
-        for (int row = 0; row < Rows; row++)
-        {
-            source.Append("        \"").Append(table, row * Columns, Columns).Append("\"u8");
-            source.Append(row < Rows - 1 ? " +\n" : ";\n");
-        }
-        source.Append("}\n");
-        return source.ToString();
+        return table;
     }
+
+    private static bool IsSurrogate(int codePoint) => codePoint >= 0xD800 && codePoint <= 0xDFFF;
 
     private static void AppendCodePoint(StringBuilder text, int codePoint)
     {
@@ -191,21 +232,48 @@ internal sealed class PairTableContexts
         }
     }
 
-    private int Pick(int cls)
+    private int Pick(int cls, bool isNext)
     {
-        List<int> list = _byClass[cls];
-        return list[_rng.Next(list.Count)];
+        if (isNext && _rng.Next(8) == 0 && _picked.Add(DottedCircle))
+        {
+            if (cls != (int)LineBreakClass.AL)
+            {
+                _forced[DottedCircle] = (LineBreakClass)cls;
+            }
+            return DottedCircle;
+        }
+
+        if (_rng.Next(2) == 0)
+        {
+            List<int> list = _byClass[cls];
+            for (int attempt = 0; attempt < 16; attempt++)
+            {
+                int natural = list[_rng.Next(list.Count)];
+                if (!_forced.ContainsKey(natural) && (isNext || natural != DottedCircle) && !IsSurrogate(natural))
+                {
+                    _picked.Add(natural);
+                    return natural;
+                }
+            }
+        }
+
+        while (true)
+        {
+            int synthetic = _anyCodePoints[_rng.Next(_anyCodePoints.Length)];
+            if (_picked.Add(synthetic))
+            {
+                _forced[synthetic] = (LineBreakClass)cls;
+                return synthetic;
+            }
+        }
     }
 
     private int RandomCodePoint()
     {
         if (_rng.Next(2) == 0)
         {
-            List<int> list = _byClass[KeyClasses[_rng.Next(KeyClasses.Length)]];
-            if (list.Count > 0)
-            {
-                return list[_rng.Next(list.Count)];
-            }
+            List<int> list = _byClass[_populatedClasses[_rng.Next(_populatedClasses.Length)]];
+            return list[_rng.Next(list.Count)];
         }
         int[] group = _anyGroup[_rng.Next(_anyGroup.Length)];
         return group[_rng.Next(group.Length)];

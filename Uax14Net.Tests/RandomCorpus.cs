@@ -47,6 +47,37 @@ internal static class RandomCorpus
         return null;
     }
 
+    public static LineBreakOptions[] BuildWideOverrideOptions()
+    {
+        LineBreakStrictness[] strictness = Enum.GetValues<LineBreakStrictness>();
+        WordBreakMode[] wordBreak = Enum.GetValues<WordBreakMode>();
+        AmbiguousWidthMode[] ambiguous = Enum.GetValues<AmbiguousWidthMode>();
+        int classCount = Enum.GetValues<LineBreakClass>().Length;
+        var options = new List<LineBreakOptions>();
+        for (int seed = 1; seed <= 24; seed++)
+        {
+            uint salt = (uint)seed * 2654435761u;
+            uint divisor = (uint)(2 + seed % 5);
+            Func<int, LineBreakClass?> map = codePoint =>
+            {
+                uint h = ((uint)codePoint ^ salt) * 2246822519u;
+                h ^= h >> 15;
+                h *= 3266489917u;
+                h ^= h >> 13;
+                return h % divisor == 0 ? (LineBreakClass)(int)((h >> 8) % (uint)classCount) : null;
+            };
+            options.Add(new LineBreakOptions
+            {
+                ClassOverride = map,
+                Strictness = strictness[seed % strictness.Length],
+                WordBreak = wordBreak[seed % wordBreak.Length],
+                AmbiguousWidth = ambiguous[seed % ambiguous.Length],
+                ComplexContextResolver = seed % 3 == 0 ? new OddBreaks() : null
+            });
+        }
+        return options.ToArray();
+    }
+
     public static int[][] BuildPool(int picksPerGroup)
     {
         var groups = new SortedDictionary<int, List<int>>();

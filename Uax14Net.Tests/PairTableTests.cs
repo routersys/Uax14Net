@@ -9,7 +9,7 @@ public class PairTableTests
 {
     private const int CaseCount = 400000;
     private const int MaxLength = 30;
-    private const int ContextsPerEntry = 40;
+    private const int ContextsPerEntry = 200;
     private const int DerivationSamples = 6000;
     private const string OutputVariable = "UAX14NET_PAIR_TABLE_OUTPUT";
 
@@ -54,6 +54,7 @@ public class PairTableTests
     public void EveryTableEntryMatchesRulePathInRandomContexts()
     {
         var contexts = new PairTableContexts(0xBEEF);
+        LineBreakOptions options = LineBreakOptions.Default;
         ReadOnlySpan<byte> entries = LineBreakPairTable.Entries;
         int checkedEntries = 0;
         for (int row = 0; row < entries.Length / LineBreakPairTable.Columns; row++)
@@ -69,8 +70,8 @@ public class PairTableTests
                 for (int i = 0; i < ContextsPerEntry; i++)
                 {
                     string text = contexts.Build(row, next, out int index);
-                    int expected = PairTableContexts.ActionAt(text, index, false);
-                    Assert.True(entry == expected, "row " + row + " next " + next + " table " + entry + " rules " + expected);
+                    int expected = contexts.ActionAt(text, index, false, in options);
+                    Assert.True(entry == expected, "row " + row + " next " + next + " table " + entry + " rules " + expected + " at " + index + " in " + Convert.ToHexString(System.Text.Encoding.Unicode.GetBytes(text)));
                 }
                 checkedEntries++;
             }
@@ -86,6 +87,8 @@ public class PairTableTests
         {
             return;
         }
-        File.WriteAllText(path, new PairTableContexts(0xA11CE).DeriveSource(DerivationSamples));
+        char[] first = new PairTableContexts(0xA11CE).DeriveTable(DerivationSamples);
+        char[] second = new PairTableContexts(0xB0B5).DeriveTable(DerivationSamples);
+        File.WriteAllText(path, PairTableContexts.ToSource(PairTableContexts.Agree(first, second)));
     }
 }
