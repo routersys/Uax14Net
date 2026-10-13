@@ -113,7 +113,7 @@ internal ref struct LineBreakScanner<TDecoder>
         return true;
     }
 
-    private BreakAction Decide(Eff n)
+    private readonly BreakAction Decide(Eff n)
     {
         LineBreakClass cur = _curCls;
         LineBreakClass next = n.Cls;
