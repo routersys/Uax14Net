@@ -837,15 +837,19 @@ internal ref struct LineBreakScanner<TDecoder>
         ushort v = (ushort)LineBreakData.Lookup(codePoint);
         LineBreakClass raw = (LineBreakClass)(byte)v;
         flags = (byte)(v >> 8);
-        sa = raw == LineBreakClass.SA;
         if (options.ClassOverride is { } classOverride)
         {
             LineBreakClass? overridden = classOverride(codePoint);
             if (overridden.HasValue)
             {
+                if (overridden.Value > LineBreakClass.ZWJ)
+                {
+                    LineBreakCore.ThrowInvalidClassOverride(codePoint, overridden.Value);
+                }
                 raw = overridden.Value;
             }
         }
+        sa = raw == LineBreakClass.SA;
         return LineBreakResolver.Resolve(raw, flags, in options);
     }
 
@@ -855,7 +859,8 @@ internal ref struct LineBreakScanner<TDecoder>
         while (end < _decoder.Length)
         {
             int cp = _decoder.Decode(end, out int len);
-            if ((LineBreakClass)(byte)LineBreakData.Lookup(cp) != LineBreakClass.SA)
+            ClassOf(cp, in _options, out _, out bool sa);
+            if (!sa)
             {
                 break;
             }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Uax14Net;
 
@@ -21,6 +22,11 @@ public static class LineBreaker
 
 internal static class LineBreakCore
 {
+    [DoesNotReturn]
+    public static void ThrowInvalidClassOverride(int codePoint, LineBreakClass value)
+        => throw new InvalidOperationException(
+            $"ClassOverride returned {(byte)value} for U+{codePoint:X4}, which is not a defined LineBreakClass.");
+
     public static bool TryAdvance<TDecoder>(ref LineBreakScanner<TDecoder> scanner, out LineBreakOpportunity current)
         where TDecoder : struct, IUtfDecoder, allows ref struct
     {

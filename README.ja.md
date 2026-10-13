@@ -194,13 +194,13 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 | `LineBreaker.Enumerate(ReadOnlySpan<byte>, in LineBreakOptions)` | 上と同じで、テーラリングのオプションを指定します。 |
 | `LineBreakEnumerator`、`Utf8LineBreakEnumerator` | `ref struct`の列挙子です。`GetEnumerator`、`MoveNext`、`Current`、`Dispose`を持ちます。 |
 
-列挙子は、改行を許す位置と要求する位置のそれぞれについて、改行機会を1つずつ返します。改行が禁止される位置は飛ばします。最後の改行機会はテキストの長さと等しいオフセットにあり、常に必須です。UTF-16の列挙子はUTF-16のオフセットを、UTF-8の列挙子はバイトオフセットを報告します。不正なUTF-8は置換文字として復号します。
+列挙子は、改行を許す位置と要求する位置のそれぞれについて、改行機会を1つずつ返します。改行が禁止される位置は飛ばします。空でないテキストの最後の改行機会は、テキストの長さと等しいオフセットにあり、常に必須です。空のテキストでは、改行機会を1つも返しません。UTF-16の列挙子はUTF-16のオフセットを、UTF-8の列挙子はバイトオフセットを報告します。不正なUTF-8は置換文字として復号します。
 
 ### 改行機会
 
 | メンバー | 説明 |
 |---|---|
-| `LineBreakOpportunity.Position` | 行を折り返せるUTF-16のオフセットです。改行は、このオフセットのコード単位の前に入ります。 |
+| `LineBreakOpportunity.Position` | 行を折り返せるオフセットです。UTF-16の列挙子はUTF-16のコード単位の、UTF-8の列挙子はバイトのオフセットを返します。改行は、このオフセットにあるコード単位かバイトの前に入ります。 |
 | `LineBreakOpportunity.Kind` | `LineBreakKind.Allowed`か`LineBreakKind.Mandatory`です。 |
 | `LineBreakOpportunity.IsMandatory` | 強制改行かテキストの終端によって、改行が必須のときtrueです。 |
 
@@ -227,7 +227,9 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 | `ClassOverride` | `null` | 規則LB1の前に、コードポイントの改行クラスを付け替えるデリゲート（`int -> LineBreakClass?`）です。 |
 | `ComplexContextResolver` | `null` | 複合文脈の文字が続く区間を分割する、`IComplexContextResolver`です。 |
 
-`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)`は、複合文脈の文字が続く最大の区間ごとに1回呼ばれます。`breakBefore[i]`をtrueにすると、`run[i]`の前で改行できます。テーラリングできない規則が禁じる改行は、エンジンが無視します。そのため、Resolverが規則に反する結果を作ることはできません。ResolverはUTF-16の入力にだけ使われ、UTF-8の入力では既定の解決を使います。
+`ClassOverride`のデリゲートは、同じコードポイントについて複数回呼ばれることがあります。そのため、毎回同じ値を返してください。`LineBreakClass`の定義にない値を返すと、列挙は`InvalidOperationException`を投げます。ClassOverrideで複合文脈のクラスに移したコードポイントはResolverの対象になり、複合文脈のクラスから外したコードポイントは対象になりません。
+
+`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)`は、複合文脈の文字が続く最大の区間ごとに1回呼ばれます。`breakBefore[i]`をtrueにすると、`run[i]`の前で改行できます。ただし`breakBefore[0]`は効果がありません。区間の先頭の文字の前は、規則が決めるためです。テーラリングできない規則が禁じる改行は、エンジンが無視します。そのため、Resolverが規則に反する結果を作ることはできません。ResolverはUTF-16の入力にだけ使われ、UTF-8の入力では既定の解決を使います。
 
 ---
 
@@ -244,8 +246,9 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 
 ## 注意事項
 
-- 入力のエンコーディング: UTF-16の入力ではUTF-16のコード単位のオフセットを、UTF-8の入力ではバイトオフセットを報告します。サロゲートペアは、上位サロゲートのオフセットにある1つのスカラー値として扱います。孤立サロゲートはSGクラスの1つの単位として扱い、不正なUTF-8の並びは1つの置換文字として復号します。
+- 入力のエンコーディング: UTF-16の入力ではUTF-16のコード単位のオフセットを、UTF-8の入力ではバイトオフセットを報告します。サロゲートペアは、上位サロゲートのオフセットにある1つのスカラー値として扱います。孤立サロゲートはSGクラスの1つの単位として扱い、不正なUTF-8の並びは、正しい並びの先頭として読める最も長い部分ごとに、1つの置換文字として復号します。これはUnicodeの推奨で、`Rune.DecodeFromUtf8`も同じです。
 - 決定性: 走査は、繰り返し実行しても同じ出力になり、呼び出しの間で状態を持ちません。列挙子は、呼び出し側が持つspanに対する`ref struct`なので、別々の列挙は互いに独立していて、インスタンスを共有しません。
+- 列挙子の寿命: Resolverを使うと、列挙子は共有の配列プールからバッファを借り、`Dispose`で返します。列挙子の`Dispose`は1回だけ呼んでください。コピーどうしがバッファを共有するため、元の列挙子が進んだあとは、そのコピーを使わないでください。`foreach`はこの決まりどおりに動きます。
 - 解決の接合部: 規則LB1の解決は、規則のエンジンから分離してあります。そのため、テーラリングのオプションと複合文脈のResolverは、テーラリングできない規則に触れずに、クラスの割り当てと、区間の中の改行を変えられます。
 - 判定表: `Uax14Net/LineBreakPairTable.cs`は規則から導いたもので、テストが規則と比べています。規則を変えたあとに再生成する手順は、[貢献の手引き](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.ja.md)に書いてあります。
 - Native AOT: ライブラリは`IsAotCompatible`を設定しているので、トリミング、単一ファイル、AOTのアナライザーが有効です。`publish-aot.bat`はサンプルアプリケーションを`win-x64`向けに発行します。ネイティブリンカーのために、MSVCのツールセットが必要です。
