@@ -135,8 +135,8 @@ jobs:
       - name: Unicode 17.0.0 の参照データを取得
         run: bash reference/build.sh
 
-      - name: ライブラリをビルド
-        run: dotnet build Uax14Net/Uax14Net.csproj -c Release
+      - name: ソリューションをビルド
+        run: dotnet build Uax14Net.slnx -c Release
 
       - name: テストを実行
-        run: dotnet test Uax14Net.Tests/Uax14Net.Tests.csproj -c Release
+        run: dotnet test Uax14Net.slnx -c Release --no-build
