@@ -24,10 +24,18 @@ internal ref struct LineBreakScanner<TDecoder>
         | (1UL << (int)LineBreakClass.ZWJ)
         | (1UL << (int)LineBreakClass.SA);
 
+    private const ulong NumberClasses =
+        (1UL << (int)LineBreakClass.NU)
+        | (1UL << (int)LineBreakClass.SY)
+        | (1UL << (int)LineBreakClass.IS)
+        | (1UL << (int)LineBreakClass.CL)
+        | (1UL << (int)LineBreakClass.CP);
+
     private const ulong PlainRunClasses = ((1UL << LineBreakPairTable.Columns) - 1)
-        & ~(StatefulClasses & ~(1UL << (int)LineBreakClass.SP))
         & ~CombiningClasses
-        & ~((1UL << (int)LineBreakClass.AI)
+        & ~((1UL << (int)LineBreakClass.QU)
+            | (1UL << (int)LineBreakClass.RI)
+            | (1UL << (int)LineBreakClass.AI)
             | (1UL << (int)LineBreakClass.CJ)
             | (1UL << (int)LineBreakClass.SG)
             | (1UL << (int)LineBreakClass.XX)
@@ -198,6 +206,8 @@ internal ref struct LineBreakScanner<TDecoder>
         byte lastFlags = _curFlags;
         LineBreakClass previousCls = _prevCls;
         byte previousFlags = 0;
+        bool numRun = _numRun;
+        bool numClose = _numClose;
         bool consumed = false;
         bool found = false;
 
@@ -245,6 +255,25 @@ internal ref struct LineBreakScanner<TDecoder>
                 beforeSp = cls;
                 row = (int)cls;
             }
+            if (((NumberClasses >> (int)cls) & 1) == 0)
+            {
+                numRun = false;
+                numClose = false;
+            }
+            else if (cls == LineBreakClass.NU)
+            {
+                numRun = true;
+                numClose = false;
+            }
+            else if (cls is LineBreakClass.SY or LineBreakClass.IS)
+            {
+                numClose = false;
+            }
+            else
+            {
+                numClose = numRun;
+                numRun = false;
+            }
             consumed = true;
             position = index;
             index = end;
@@ -277,8 +306,8 @@ internal ref struct LineBreakScanner<TDecoder>
             _curSa = false;
             _piQuote = false;
             _ri = 0;
-            _numRun = false;
-            _numClose = false;
+            _numRun = numRun;
+            _numClose = numClose;
             _beforeSp = beforeSp;
             _row = row;
             _slowState = 0;
