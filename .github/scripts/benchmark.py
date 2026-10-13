@@ -74,15 +74,15 @@ def block_en(aot, jit, runs, date, commit, cpu):
 def block_ja(aot, jit, runs, date, commit, cpu):
     cps = int(aot["codepoints"])
     return (
-        f"GitHub Actions の `windows-latest` ランナー ({cpu}) で CI が計測。"
-        f"{cps} コードポイントの多言語コーパスに対する {runs} 回中の最良値で、"
-        "1 つのプロセスの中で、計測しない通しを一度行ったあとの値です。"
-        "二つのビルドは同じジョブの中で続けて走らせます。"
-        f"{date} に コミット `{commit[:7]}` で記録。\n\n"
+        f"GitHub Actionsの`windows-latest`ランナー（{cpu}）でCIが計測しました。"
+        f"{cps}コードポイントの多言語コーパスについて、{runs}回のうち最良の値です。"
+        "1つのプロセスの中で、計測しない通しを1回行ったあとの値です。"
+        "2つのビルドは、同じジョブの中で続けて走らせています。"
+        f"{date}に、コミット`{commit[:7]}`で記録しました。\n\n"
         "| 指標 | Native AOT | JIT |\n"
         "|---|---:|---:|\n"
         f"| スループット | {float(aot['throughput_mb_per_s']):.1f} MB/s | {float(jit['throughput_mb_per_s']):.1f} MB/s |\n"
-        f"| コードポイント毎の時間 | {float(aot['ns_per_codepoint']):.2f} ns | {float(jit['ns_per_codepoint']):.2f} ns |\n"
+        f"| コードポイントあたりの時間 | {float(aot['ns_per_codepoint']):.2f} ns | {float(jit['ns_per_codepoint']):.2f} ns |\n"
     )
 
 
