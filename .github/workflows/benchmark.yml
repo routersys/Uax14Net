@@ -59,6 +59,9 @@ jobs:
         shell: cmd
         run: publish-aot.bat
 
+      - name: 実行例を JIT 用にビルド
+        run: dotnet build Uax14Net.Examples/Uax14Net.Examples.csproj -c Release
+
       - name: 計測を実行して README を更新
         run: |
           AOT=$(find Uax14Net.Examples/bin -name Uax14Net.Examples.exe -path "*publish*" -print -quit)
@@ -69,6 +72,7 @@ jobs:
           echo "計測対象: ${AOT}"
           python .github/scripts/benchmark.py \
             --aot "${AOT}" \
+            --jit Uax14Net.Examples/bin/Release/net10.0/Uax14Net.Examples.dll \
             --runs "${{ inputs.runs || '20' }}" \
             --readme README.md \
             --readme-ja README.ja.md \
