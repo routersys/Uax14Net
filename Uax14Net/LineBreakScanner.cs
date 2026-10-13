@@ -9,6 +9,16 @@ internal ref struct LineBreakScanner<TDecoder>
 {
     private const int DottedCircle = 0x25CC;
 
+    private const ulong StatefulClasses =
+        (1UL << (int)LineBreakClass.QU)
+        | (1UL << (int)LineBreakClass.RI)
+        | (1UL << (int)LineBreakClass.NU)
+        | (1UL << (int)LineBreakClass.SY)
+        | (1UL << (int)LineBreakClass.IS)
+        | (1UL << (int)LineBreakClass.CL)
+        | (1UL << (int)LineBreakClass.CP)
+        | (1UL << (int)LineBreakClass.SP);
+
     private const byte SlowAfterZwj = 1;
     private const byte SlowQuote = 2;
     private const byte SlowBrahmic = 4;
@@ -484,6 +494,45 @@ internal ref struct LineBreakScanner<TDecoder>
         bool ea = (e.Flags & LineBreakData.FlagEastAsian) != 0;
         bool ak = IsAk(cls, e.Cp);
 
+        if (((1UL << (int)cls) & StatefulClasses) == 0)
+        {
+            _piQuote = false;
+            _ri = 0;
+            _numRun = false;
+            _numClose = false;
+            _beforeSp = cls;
+        }
+        else
+        {
+            UpdateStatefulState(e, sotLeft);
+        }
+
+        if (_started || sotLeft)
+        {
+            _prevCls = _curCls;
+            _prevEa = (_curFlags & LineBreakData.FlagEastAsian) != 0;
+            _prevAk = _curAk;
+            _hasPrev = _started;
+        }
+
+        _curCls = cls;
+        _curFlags = e.Flags;
+        _curAk = ak;
+        _afterZwj = e.Zwj;
+        _curSa = e.Sa;
+
+        _row = cls == LineBreakClass.SP ? LineBreakPairTable.SpaceRowBase + (int)_beforeSp : (int)cls;
+        _slowState = (byte)(_slowBase
+            | (e.Zwj ? SlowAfterZwj : 0)
+            | (_piQuote ? SlowQuote : 0)
+            | (ak ? SlowBrahmic : 0)
+            | (e.Sa && _options.ComplexContextResolver is not null ? SlowResolver : 0));
+    }
+
+    private void UpdateStatefulState(Eff e, bool sotLeft)
+    {
+        LineBreakClass cls = e.Cls;
+
         bool leftPiContext = sotLeft
             || _curCls is LineBreakClass.BK or LineBreakClass.CR or LineBreakClass.LF or LineBreakClass.NL
                 or LineBreakClass.OP or LineBreakClass.QU or LineBreakClass.GL or LineBreakClass.SP or LineBreakClass.ZW;
@@ -530,27 +579,6 @@ internal ref struct LineBreakScanner<TDecoder>
         {
             _beforeSp = cls;
         }
-
-        if (_started || sotLeft)
-        {
-            _prevCls = _curCls;
-            _prevEa = (_curFlags & LineBreakData.FlagEastAsian) != 0;
-            _prevAk = _curAk;
-            _hasPrev = _started;
-        }
-
-        _curCls = cls;
-        _curFlags = e.Flags;
-        _curAk = ak;
-        _afterZwj = e.Zwj;
-        _curSa = e.Sa;
-
-        _row = cls == LineBreakClass.SP ? LineBreakPairTable.SpaceRowBase + (int)_beforeSp : (int)cls;
-        _slowState = (byte)(_slowBase
-            | (e.Zwj ? SlowAfterZwj : 0)
-            | (_piQuote ? SlowQuote : 0)
-            | (ak ? SlowBrahmic : 0)
-            | (e.Sa && _options.ComplexContextResolver is not null ? SlowResolver : 0));
     }
 
     private static bool IsLb15bFollower(LineBreakClass c)
