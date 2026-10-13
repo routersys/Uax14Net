@@ -43,12 +43,7 @@ internal ref struct LineBreakScanner<TDecoder>
             | (1UL << (int)LineBreakClass.AS)
             | (1UL << (int)LineBreakClass.AP)
             | (1UL << (int)LineBreakClass.VF)
-            | (1UL << (int)LineBreakClass.VI)
-            | (1UL << (int)LineBreakClass.BK)
-            | (1UL << (int)LineBreakClass.CR)
-            | (1UL << (int)LineBreakClass.LF)
-            | (1UL << (int)LineBreakClass.NL)
-            | (1UL << (int)LineBreakClass.ZW));
+            | (1UL << (int)LineBreakClass.VI));
 
     private const byte SlowAfterZwj = 1;
     private const byte SlowQuote = 2;
@@ -86,6 +81,8 @@ internal ref struct LineBreakScanner<TDecoder>
 
     private readonly byte _slowBase;
     private readonly bool _plainRun;
+    private readonly LineBreakClass _ambiguousClass;
+    private readonly LineBreakClass _conditionalClass;
     private byte _slowState;
     private int _row;
 
@@ -95,6 +92,8 @@ internal ref struct LineBreakScanner<TDecoder>
         _options = options;
         _slowBase = useTable && options.WordBreak == WordBreakMode.Normal ? (byte)0 : SlowStatic;
         _plainRun = _slowBase == 0 && options.ClassOverride is null;
+        _ambiguousClass = options.AmbiguousWidth == AmbiguousWidthMode.Ideographic ? LineBreakClass.ID : LineBreakClass.AL;
+        _conditionalClass = options.Strictness == LineBreakStrictness.Normal ? LineBreakClass.ID : LineBreakClass.NS;
         _slowState = _slowBase;
         _row = 0;
         _index = 0;
@@ -206,6 +205,7 @@ internal ref struct LineBreakScanner<TDecoder>
         byte lastFlags = _curFlags;
         LineBreakClass previousCls = _prevCls;
         byte previousFlags = 0;
+        bool hasResolver = _options.ComplexContextResolver is not null;
         bool numRun = _numRun;
         bool numClose = _numClose;
         bool consumed = false;
@@ -216,7 +216,26 @@ internal ref struct LineBreakScanner<TDecoder>
         while (true)
         {
             LineBreakClass cls = (LineBreakClass)(byte)value;
-            if (((PlainRunClasses >> (int)cls) & 1) == 0 || cp == DottedCircle)
+            if (((PlainRunClasses >> (int)cls) & 1) == 0)
+            {
+                if (cls == LineBreakClass.AI)
+                {
+                    cls = _ambiguousClass;
+                }
+                else if (cls == LineBreakClass.CJ)
+                {
+                    cls = _conditionalClass;
+                }
+                else if (cls is LineBreakClass.SG or LineBreakClass.XX || (cls == LineBreakClass.SA && !hasResolver))
+                {
+                    cls = LineBreakClass.AL;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (cp == DottedCircle)
             {
                 break;
             }
@@ -230,7 +249,10 @@ internal ref struct LineBreakScanner<TDecoder>
             {
                 nextCp = _decoder.Decode(end, out nextLength);
                 nextValue = LineBreakData.Lookup(nextCp);
-                if (((CombiningClasses >> (byte)nextValue) & 1) != 0)
+                if (((CombiningClasses >> (byte)nextValue) & 1) != 0
+                    && ((LineBreakClass)(byte)nextValue != LineBreakClass.SA
+                        || hasResolver
+                        || (nextValue & (LineBreakData.FlagSaCombiningBase << 8)) != 0))
                 {
                     break;
                 }
