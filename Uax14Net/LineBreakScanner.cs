@@ -80,7 +80,6 @@ internal ref struct LineBreakScanner<TDecoder>
     private bool _emittedEot;
 
     private readonly byte _slowBase;
-    private readonly bool _plainRun;
     private readonly LineBreakClass _ambiguousClass;
     private readonly LineBreakClass _conditionalClass;
     private byte _slowState;
@@ -91,7 +90,6 @@ internal ref struct LineBreakScanner<TDecoder>
         _decoder = decoder;
         _options = options;
         _slowBase = useTable && options.WordBreak == WordBreakMode.Normal ? (byte)0 : SlowStatic;
-        _plainRun = _slowBase == 0 && options.ClassOverride is null;
         _ambiguousClass = options.AmbiguousWidth == AmbiguousWidthMode.Ideographic ? LineBreakClass.ID : LineBreakClass.AL;
         _conditionalClass = options.Strictness == LineBreakStrictness.Normal ? LineBreakClass.ID : LineBreakClass.NS;
         _slowState = _slowBase;
@@ -187,14 +185,20 @@ internal ref struct LineBreakScanner<TDecoder>
         }
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool TryScanPlainRun(out int position, out BreakAction action)
+        => _options.ClassOverride is { } classOverride
+            ? TryScanPlainRun(new OverriddenClassSource(classOverride), out position, out action)
+            : TryScanPlainRun(default(DataClassSource), out position, out action);
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private bool TryScanPlainRun<TSource>(TSource source, out int position, out BreakAction action)
+        where TSource : struct, IClassSource
     {
         position = 0;
         action = BreakAction.Prohibited;
         int length = _decoder.Length;
         int index = _index;
-        if (!_plainRun || _slowState != 0 || index >= length)
+        if (_slowState != 0 || index >= length)
         {
             return false;
         }
@@ -213,7 +217,7 @@ internal ref struct LineBreakScanner<TDecoder>
         bool found = false;
 
         int cp = _decoder.Decode(index, out int cpLength);
-        ushort value = LineBreakData.Lookup(cp);
+        ushort value = source.Lookup(cp);
         while (true)
         {
             LineBreakClass cls = (LineBreakClass)(byte)value;
@@ -249,7 +253,7 @@ internal ref struct LineBreakScanner<TDecoder>
             if (hasNext)
             {
                 nextCp = _decoder.Decode(end, out nextLength);
-                nextValue = LineBreakData.Lookup(nextCp);
+                nextValue = source.Lookup(nextCp);
                 if (((CombiningClasses >> (byte)nextValue) & 1) != 0
                     && ((LineBreakClass)(byte)nextValue != LineBreakClass.SA
                         || hasResolver
@@ -834,23 +838,32 @@ internal ref struct LineBreakScanner<TDecoder>
 
     private static LineBreakClass ClassOf(int codePoint, in LineBreakOptions options, out byte flags, out bool sa)
     {
-        ushort v = (ushort)LineBreakData.Lookup(codePoint);
+        ushort v = LookupClass(codePoint, options.ClassOverride);
         LineBreakClass raw = (LineBreakClass)(byte)v;
         flags = (byte)(v >> 8);
-        if (options.ClassOverride is { } classOverride)
-        {
-            LineBreakClass? overridden = classOverride(codePoint);
-            if (overridden.HasValue)
-            {
-                if (overridden.Value > LineBreakClass.ZWJ)
-                {
-                    LineBreakCore.ThrowInvalidClassOverride(codePoint, overridden.Value);
-                }
-                raw = overridden.Value;
-            }
-        }
         sa = raw == LineBreakClass.SA;
         return LineBreakResolver.Resolve(raw, flags, in options);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ushort LookupClass(int codePoint, Func<int, LineBreakClass?>? classOverride)
+    {
+        ushort value = LineBreakData.Lookup(codePoint);
+        return classOverride is null ? value : ApplyOverride(codePoint, value, classOverride);
+    }
+
+    private static ushort ApplyOverride(int codePoint, ushort value, Func<int, LineBreakClass?> classOverride)
+    {
+        LineBreakClass? overridden = classOverride(codePoint);
+        if (!overridden.HasValue)
+        {
+            return value;
+        }
+        if (overridden.Value > LineBreakClass.ZWJ)
+        {
+            LineBreakCore.ThrowInvalidClassOverride(codePoint, overridden.Value);
+        }
+        return (ushort)((value & 0xFF00) | (byte)overridden.Value);
     }
 
     private void LoadRun(int start)
@@ -890,6 +903,27 @@ internal ref struct LineBreakScanner<TDecoder>
     }
 
     public void Dispose() => ReturnBuffer();
+
+    private interface IClassSource
+    {
+        ushort Lookup(int codePoint);
+    }
+
+    private readonly struct DataClassSource : IClassSource
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ushort Lookup(int codePoint) => LineBreakData.Lookup(codePoint);
+    }
+
+    private readonly struct OverriddenClassSource : IClassSource
+    {
+        private readonly Func<int, LineBreakClass?> _classOverride;
+
+        public OverriddenClassSource(Func<int, LineBreakClass?> classOverride) => _classOverride = classOverride;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ushort Lookup(int codePoint) => ApplyOverride(codePoint, LineBreakData.Lookup(codePoint), _classOverride);
+    }
 
     private readonly struct Eff
     {
