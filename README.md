@@ -134,7 +134,7 @@ The first table is a fixed record taken on a workstation. It is not regenerated.
 | Before the pair table | 61.9 MB/s | 31.62 ns | 91.6 MB/s | 21.35 ns |
 | With the pair table and the run scan | 248.8 MB/s | 7.86 ns | 316.9 MB/s | 6.17 ns |
 
-The just-in-time figures are the best of the runs after one untimed pass over the corpus, so tiered compilation has already optimized the code. Every optimisation below leaves the output identical, which the tests above check. The effect of each is its speed-up over the stage before it, measured with the Native AOT build of the sample, alternating between all six builds.
+The just-in-time figures are the best of 30 runs in a process, after one untimed pass over the corpus. Every optimisation below leaves the output identical, which the tests above check. The effect of each is its speed-up over the stage before it, measured with the Native AOT build of the sample, alternating between all six builds.
 
 | Optimisation | Effect |
 |---|---|
