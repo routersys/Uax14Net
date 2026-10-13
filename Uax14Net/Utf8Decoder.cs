@@ -39,30 +39,36 @@ internal readonly ref struct Utf8Decoder : IUtfDecoder
         }
         if (b0 < 0xF0)
         {
-            if (index + 2 < _bytes.Length && IsContinuation(_bytes[index + 1]) && IsContinuation(_bytes[index + 2]))
+            if (index + 1 < _bytes.Length && IsSecondByte(b0, _bytes[index + 1]))
             {
-                int cp = ((b0 & 0x0F) << 12) | ((_bytes[index + 1] & 0x3F) << 6) | (_bytes[index + 2] & 0x3F);
-                if (cp >= 0x800 && (cp < 0xD800 || cp > 0xDFFF))
+                if (index + 2 < _bytes.Length && IsContinuation(_bytes[index + 2]))
                 {
                     length = 3;
-                    return cp;
+                    return ((b0 & 0x0F) << 12) | ((_bytes[index + 1] & 0x3F) << 6) | (_bytes[index + 2] & 0x3F);
                 }
+                length = 2;
+                return Replacement;
             }
             length = 1;
             return Replacement;
         }
         if (b0 < 0xF5)
         {
-            if (index + 3 < _bytes.Length && IsContinuation(_bytes[index + 1])
-                && IsContinuation(_bytes[index + 2]) && IsContinuation(_bytes[index + 3]))
+            if (index + 1 < _bytes.Length && IsSecondByte(b0, _bytes[index + 1]))
             {
-                int cp = ((b0 & 0x07) << 18) | ((_bytes[index + 1] & 0x3F) << 12)
-                    | ((_bytes[index + 2] & 0x3F) << 6) | (_bytes[index + 3] & 0x3F);
-                if (cp >= 0x10000 && cp <= 0x10FFFF)
+                if (index + 2 < _bytes.Length && IsContinuation(_bytes[index + 2]))
                 {
-                    length = 4;
-                    return cp;
+                    if (index + 3 < _bytes.Length && IsContinuation(_bytes[index + 3]))
+                    {
+                        length = 4;
+                        return ((b0 & 0x07) << 18) | ((_bytes[index + 1] & 0x3F) << 12)
+                            | ((_bytes[index + 2] & 0x3F) << 6) | (_bytes[index + 3] & 0x3F);
+                    }
+                    length = 3;
+                    return Replacement;
                 }
+                length = 2;
+                return Replacement;
             }
             length = 1;
             return Replacement;
@@ -79,4 +85,15 @@ internal readonly ref struct Utf8Decoder : IUtfDecoder
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsContinuation(byte b) => (b & 0xC0) == 0x80;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsSecondByte(byte lead, byte second)
+        => IsContinuation(second) && lead switch
+        {
+            0xE0 => second >= 0xA0,
+            0xED => second < 0xA0,
+            0xF0 => second >= 0x90,
+            0xF4 => second < 0x90,
+            _ => true
+        };
 }
