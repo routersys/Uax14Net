@@ -8,6 +8,7 @@
     <OptimizationPreference>Speed</OptimizationPreference>
     <IlcInstructionSet>x86-64-v3</IlcInstructionSet>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <TieredCompilation>false</TieredCompilation>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
