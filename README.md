@@ -192,13 +192,13 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 | `LineBreaker.Enumerate(ReadOnlySpan<byte>, in LineBreakOptions)` | The same, with tailoring options. |
 | `LineBreakEnumerator`, `Utf8LineBreakEnumerator` | The `ref struct` enumerators, with `GetEnumerator`, `MoveNext`, `Current` and `Dispose`. |
 
-The enumerator yields one opportunity per position at which a break is allowed or required. Positions where a break is prohibited are skipped. The final opportunity is at the offset equal to the length of the text and is always mandatory. The UTF-16 enumerator reports UTF-16 offsets; the UTF-8 enumerator reports byte offsets. Invalid UTF-8 is decoded as the replacement character.
+The enumerator yields one opportunity per position at which a break is allowed or required. Positions where a break is prohibited are skipped. The final opportunity of a text that is not empty is at the offset equal to the length of the text and is always mandatory; an empty text yields no opportunity. The UTF-16 enumerator reports UTF-16 offsets; the UTF-8 enumerator reports byte offsets. Invalid UTF-8 is decoded as the replacement character.
 
 ### Opportunities
 
 | Member | Description |
 |---|---|
-| `LineBreakOpportunity.Position` | The UTF-16 offset at which the line may be broken. A break is placed before the code unit at this offset. |
+| `LineBreakOpportunity.Position` | The offset at which the line may be broken: a UTF-16 code unit offset from the UTF-16 enumerator and a byte offset from the UTF-8 enumerator. A break is placed before the code unit, or the byte, at this offset. |
 | `LineBreakOpportunity.Kind` | `LineBreakKind.Allowed` or `LineBreakKind.Mandatory`. |
 | `LineBreakOpportunity.IsMandatory` | True when the break is required by a hard line break or the end of the text. |
 
@@ -225,7 +225,9 @@ The enumerator yields one opportunity per position at which a break is allowed o
 | `ClassOverride` | `null` | A delegate `int -> LineBreakClass?` that reassigns the line breaking class of a code point before rule LB1. |
 | `ComplexContextResolver` | `null` | An `IComplexContextResolver` that segments runs of complex-context characters. |
 
-`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)` is called once per maximal run of complex-context characters. Setting `breakBefore[i]` allows a break before `run[i]`. The engine ignores a break the non-tailorable rules forbid, so a resolver cannot produce a non-conforming result. A resolver applies to UTF-16 input; on UTF-8 input the default resolution is used.
+The `ClassOverride` delegate may be called more than once for the same code point, so it must return the same value every time. A value that is not a member of `LineBreakClass` makes the enumeration throw `InvalidOperationException`. A code point that the override moves into the complex-context class is handled by the resolver, and one that it moves out of that class is not.
+
+`IComplexContextResolver.Resolve(ReadOnlySpan<char> run, Span<bool> breakBefore)` is called once per maximal run of complex-context characters. Setting `breakBefore[i]` allows a break before `run[i]`, except that `breakBefore[0]` has no effect, because the rules decide the position before the first character of a run. The engine ignores a break the non-tailorable rules forbid, so a resolver cannot produce a non-conforming result. A resolver applies to UTF-16 input; on UTF-8 input the default resolution is used.
 
 ---
 
@@ -242,8 +244,9 @@ The enumerator yields one opportunity per position at which a break is allowed o
 
 ## Notes
 
-- Input encoding: UTF-16 input reports UTF-16 code unit offsets, and UTF-8 input reports byte offsets. A surrogate pair is a single scalar value at the offset of its high surrogate, a lone surrogate is treated as a single unit of the surrogate class, and an invalid UTF-8 sequence is decoded as one replacement character.
+- Input encoding: UTF-16 input reports UTF-16 code unit offsets, and UTF-8 input reports byte offsets. A surrogate pair is a single scalar value at the offset of its high surrogate, a lone surrogate is treated as a single unit of the surrogate class, and an invalid UTF-8 sequence is decoded as one replacement character for each longest part that could begin a well-formed sequence, as Unicode recommends and `Rune.DecodeFromUtf8` does.
 - Determinism: the scan produces identical output across repeated runs and holds no state between calls. Because the enumerator is a `ref struct` over a caller-owned span, separate enumerations are independent and no instance is shared.
+- Enumerator lifetime: with a resolver, an enumerator rents a buffer from the shared array pool, and `Dispose` returns it. Dispose an enumerator once, and do not use a copy of it after the original has advanced, because the copies share the buffer. `foreach` follows this rule.
 - Resolution seam: rule LB1 resolution is separate from the rule engine, so the tailoring options and the complex-context resolver change class assignments and interior breaks without touching the non-tailorable rules.
 - Pair table: `Uax14Net/LineBreakPairTable.cs` is derived from the rules, and the tests compare it with them. The [contributing guide](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.md) describes how to regenerate it after a change to the rules.
 - Native AOT: the library sets `IsAotCompatible`, which enables the trim, single-file and AOT analyzers. `publish-aot.bat` publishes the sample application for `win-x64` and requires the MSVC toolset for the native linker.
