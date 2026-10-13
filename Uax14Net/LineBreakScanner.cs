@@ -34,7 +34,7 @@ internal ref struct LineBreakScanner<TDecoder>
     private bool _numClose;
     private bool _piQuote;
 
-    private bool _started;
+    private readonly bool _started;
     private bool _emittedEot;
 
     public LineBreakScanner(TDecoder decoder, LineBreakOptions options)
