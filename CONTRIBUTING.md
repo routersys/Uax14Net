@@ -129,7 +129,7 @@ Do not make the agreement with the official LineBreakTest.txt worse. All 19338 l
 
 ### Fast paths
 
-A fast path that skips a rule must keep every result identical. The pair table is derived from the rules and not written by hand. After a change to the rules, regenerate it as the README describes under Notes. The tests compare every table entry and the whole scan with the rules, and a recorded hash fixes the output over a pseudo-random corpus under fourteen option sets. If a change alters results on purpose, update the recorded hashes and say in the pull request why the results change.
+A fast path that skips a rule must keep every result identical. The pair table is derived from the rules and not written by hand. After a change to the rules, regenerate it: run the test `WritesDerivedTableWhenRequested` with the environment variable `UAX14NET_PAIR_TABLE_OUTPUT` set to a file path, and replace `Uax14Net/LineBreakPairTable.cs` with that file. The tests compare every table entry and the whole scan with the rules, and a recorded hash fixes the output over a pseudo-random corpus under fourteen option sets. If a change alters results on purpose, update the recorded hashes and say in the pull request why the results change.
 
 ### Allocation
 
