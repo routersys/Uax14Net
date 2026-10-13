@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Uax14Net は Unicode 改行アルゴリズムを実装し、出力を公式の LineBreakTest.txt と照合して
+        Uax14NetはUnicode改行アルゴリズムを実装し、出力を公式のLineBreakTest.txtと比べて
         確かめています。また、走査はマネージドメモリを確保しません。提案はこの二つに照らして
         判断するため、以下の結果とメモリの確保についての質問が、結論を左右します。
 
@@ -49,7 +49,7 @@ body:
     attributes:
       label: 提案するAPI
       description: |
-        C# のシグネチャだけを書いてください。追加する public のメンバーをすべて含めてください。
+        C# のシグネチャだけを書いてください。追加するpublicのメンバーをすべて含めてください。
         公開面が小さく、過不足が無いほうが、受け入れやすくなります。
       render: csharp
 
@@ -58,7 +58,7 @@ body:
     attributes:
       label: 結果への影響
       description: |
-        UAX #14 Revision 55 の既定の挙動と異なる改行が生じるか。生じる場合は、どのテキストで、どれだけ
+        UAX #14 Revision 55の既定の挙動と異なる改行が生じるか。生じる場合は、どのテキストで、どれだけ
         異なるかを書いてください。異なる改行が無ければ「なし」と書いてください。
     validations:
       required: true
@@ -68,7 +68,7 @@ body:
     attributes:
       label: 確保への影響
       description: |
-        マネージドメモリを確保する呼び出しが、UTF-16 の経路または UTF-8 の経路で生じるか。
+        マネージドメモリを確保する呼び出しが、UTF-16の経路またはUTF-8の経路で生じるか。
         変わらなければ「なし」と書いてください。
     validations:
       required: true
