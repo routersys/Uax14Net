@@ -97,7 +97,7 @@ section if the change touches none of them.
 - [ ] The agreement with the official LineBreakTest.txt is not worse: every line still passes, or an issue agreed the change. / 公式のLineBreakTest.txtとの一致を悪くしていない。すべての行が通るか、変更をIssueで合意した。
 - [ ] The scan still performs no managed allocation on the UTF-16 path and on the UTF-8 path, and the allocation tests pass. / 走査が、UTF-16の経路でもUTF-8の経路でも、引き続きマネージドメモリを確保せず、確保のテストが通る。
 - [ ] A fast path that skips a computation keeps every result identical, and a test compares it with the rules. / 計算を省く高速経路は、すべての結果を同一に保ち、規則と比べるテストがある。
-- [ ] If the rules changed, the pair table was regenerated as the README describes under Notes. / 規則を変えた場合、READMEの注記に書いた手順で判定表を再生成した。
+- [ ] If the rules changed, the pair table was regenerated as the contributing guide describes. / 規則を変えた場合、貢献の手引きに書いた手順で判定表を再生成した。
 - [ ] For a change to the UTF-8 path, the byte offsets agree with the UTF-16 offsets. / UTF-8の経路を変えた場合、バイトオフセットがUTF-16のオフセットと一致する。
 
 ## If this claims a performance improvement / 性能の改善を主張する場合
