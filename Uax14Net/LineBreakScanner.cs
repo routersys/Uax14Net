@@ -9,6 +9,12 @@ internal ref struct LineBreakScanner<TDecoder>
 {
     private const int DottedCircle = 0x25CC;
 
+    private const byte SlowAfterZwj = 1;
+    private const byte SlowQuote = 2;
+    private const byte SlowBrahmic = 4;
+    private const byte SlowResolver = 8;
+    private const byte SlowStatic = 16;
+
     private readonly TDecoder _decoder;
     private readonly LineBreakOptions _options;
     private int _index;
@@ -37,10 +43,17 @@ internal ref struct LineBreakScanner<TDecoder>
     private readonly bool _started;
     private bool _emittedEot;
 
-    public LineBreakScanner(TDecoder decoder, LineBreakOptions options)
+    private readonly byte _slowBase;
+    private byte _slowState;
+    private int _row;
+
+    public LineBreakScanner(TDecoder decoder, LineBreakOptions options, bool useTable = true)
     {
         _decoder = decoder;
         _options = options;
+        _slowBase = useTable && options.WordBreak == WordBreakMode.Normal ? (byte)0 : SlowStatic;
+        _slowState = _slowBase;
+        _row = 0;
         _index = 0;
         _curCls = LineBreakClass.XX;
         _curFlags = 0;
@@ -114,6 +127,19 @@ internal ref struct LineBreakScanner<TDecoder>
     }
 
     private readonly BreakAction Decide(Eff n)
+    {
+        if (_slowState == 0)
+        {
+            int entry = LineBreakPairTable.Entries[_row * LineBreakPairTable.Columns + (int)n.Cls] - LineBreakPairTable.Digit;
+            if (entry < 3)
+            {
+                return (BreakAction)entry;
+            }
+        }
+        return DecideByRules(n);
+    }
+
+    private readonly BreakAction DecideByRules(Eff n)
     {
         LineBreakClass cur = _curCls;
         LineBreakClass next = n.Cls;
@@ -518,6 +544,13 @@ internal ref struct LineBreakScanner<TDecoder>
         _curAk = ak;
         _afterZwj = e.Zwj;
         _curSa = e.Sa;
+
+        _row = cls == LineBreakClass.SP ? LineBreakPairTable.SpaceRowBase + (int)_beforeSp : (int)cls;
+        _slowState = (byte)(_slowBase
+            | (e.Zwj ? SlowAfterZwj : 0)
+            | (_piQuote ? SlowQuote : 0)
+            | (ak ? SlowBrahmic : 0)
+            | (e.Sa && _options.ComplexContextResolver is not null ? SlowResolver : 0));
     }
 
     private static bool IsLb15bFollower(LineBreakClass c)
