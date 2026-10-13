@@ -1,0 +1,173 @@
+name: Bug report
+description: Report behavior that differs from what the library documents or guarantees.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not report a vulnerability here. Use the security advisory link on the previous page.
+        A crash or an out-of-bounds access that the contents of a text or the value of an option triggers may be a vulnerability.
+
+        A report is actionable when someone else can reproduce it. The fields below are the ones
+        that decide whether that is possible for this library.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Where the behavior appears. Pick the one closest to the failure, not to your own code.
+      options:
+        - Break opportunities or mandatory breaks (rules LB4 to LB8)
+        - Combining marks, joiners and no-break characters (rules LB8a to LB12a)
+        - Quotation marks, brackets and punctuation (rules LB13 to LB22)
+        - Numbers (rules LB23 to LB25)
+        - Hangul, Brahmic scripts, emoji and regional indicators (rules LB26 to LB30b)
+        - Line breaking class lookup (GetLineBreakClass)
+        - Tailoring options (LineBreakOptions)
+        - Complex-context resolver (IComplexContextResolver)
+        - UTF-8 input and byte offsets
+        - Source generator or reference data
+        - Packaging, NuGet or Native AOT
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: Symptom
+      options:
+        - An exception is thrown
+        - A break differs from the official LineBreakTest.txt
+        - A break differs from the text of UAX #14
+        - A break differs from another implementation
+        - The process crashes
+        - Managed allocation or memory growth
+        - It is slower than expected
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: The exact version of the Uax14Net package you reference.
+      placeholder: Uax14Net 1.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected, and where that expectation comes from if the documentation states it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: |
+        What happened instead. Paste the exception type, message and stack trace in full if one was thrown.
+        For a wrong break, give the offsets that the enumerator returned and the offsets you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: |
+        The smallest code that shows the problem, including every option that differs from its default.
+        A report without this is usually closed for lack of information.
+      render: csharp
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: |
+        The text as a list of code points such as U+0061 U+0020 U+4E00, because a character that looks the
+        same can be a different code point. State whether the text was passed as UTF-16 or as UTF-8, and
+        the line breaking class that you believe each code point has.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: comparison
+    attributes:
+      label: Comparison with the specification
+      description: |
+        Uax14Net implements the default rules of UAX #14 Revision 55 for Unicode 17.0.0 and is verified against the
+        official LineBreakTest.txt of that version. An implementation that applies tailoring is not a reference
+        for the default behavior, so say which one differs and how.
+      options:
+        - A line of the official LineBreakTest.txt gives a different result
+        - The text of UAX #14 Revision 55 gives a different result
+        - Another implementation gives a different result
+        - I have not compared
+        - Not applicable
+    validations:
+      required: true
+
+  - type: input
+    id: other
+    attributes:
+      label: Other implementation
+      description: Fill this in only if you compared with another implementation. Its name, its version and the options it ran with.
+      placeholder: ICU, its version and the locale it ran with
+
+  - type: input
+    id: runtime
+    attributes:
+      label: .NET runtime and target framework
+      description: |
+        The runtime that runs the process, from `dotnet --list-runtimes`, and the target framework of your
+        project. The package carries a build for net10.0 only.
+      placeholder: Microsoft.NETCore.App 10.0.0, target net10.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Execution mode
+      options:
+        - JIT
+        - ReadyToRun
+        - Native AOT
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and architecture
+      placeholder: Windows 11 24H2 x64, Ubuntu 24.04 ARM64
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: |
+        How you measured an allocation or a timing, the values of `Strictness`, `WordBreak` and `AmbiguousWidth`,
+        whether `ClassOverride` or `ComplexContextResolver` is set and what it does, or anything else you think matters.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am using the latest released version, or I state above why I cannot.
+          required: true
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: I read the Limitations section of the README, and this is not a limitation listed there.
+          required: true
