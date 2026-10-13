@@ -187,6 +187,7 @@ internal ref struct LineBreakScanner<TDecoder>
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private bool TryScanPlainRun(out int position, out BreakAction action)
     {
         position = 0;
@@ -792,6 +793,7 @@ internal ref struct LineBreakScanner<TDecoder>
     private static bool IsAk(LineBreakClass c, int cp)
         => c is LineBreakClass.AK or LineBreakClass.AS || cp == DottedCircle;
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static Eff ReadEffective(TDecoder decoder, int index, in LineBreakOptions options)
     {
         if (index >= decoder.Length)
