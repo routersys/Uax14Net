@@ -843,6 +843,10 @@ internal ref struct LineBreakScanner<TDecoder>
             LineBreakClass? overridden = classOverride(codePoint);
             if (overridden.HasValue)
             {
+                if (overridden.Value > LineBreakClass.ZWJ)
+                {
+                    LineBreakCore.ThrowInvalidClassOverride(codePoint, overridden.Value);
+                }
                 raw = overridden.Value;
             }
         }
