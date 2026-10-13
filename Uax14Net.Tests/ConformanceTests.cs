@@ -41,7 +41,7 @@ public class ConformanceTests
             offsetToIndex[boundaryOffsets[i]] = i;
         }
 
-        var actual = new bool[boundaryOffsets.Length];
+        bool[] actual = new bool[boundaryOffsets.Length];
         foreach (LineBreakOpportunity opportunity in LineBreaker.Enumerate(text))
         {
             if (offsetToIndex.TryGetValue(opportunity.Position, out int index))

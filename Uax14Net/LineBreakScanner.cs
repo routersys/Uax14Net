@@ -9,6 +9,48 @@ internal ref struct LineBreakScanner<TDecoder>
 {
     private const int DottedCircle = 0x25CC;
 
+    private const ulong StatefulClasses =
+        (1UL << (int)LineBreakClass.QU)
+        | (1UL << (int)LineBreakClass.RI)
+        | (1UL << (int)LineBreakClass.NU)
+        | (1UL << (int)LineBreakClass.SY)
+        | (1UL << (int)LineBreakClass.IS)
+        | (1UL << (int)LineBreakClass.CL)
+        | (1UL << (int)LineBreakClass.CP)
+        | (1UL << (int)LineBreakClass.SP);
+
+    private const ulong CombiningClasses =
+        (1UL << (int)LineBreakClass.CM)
+        | (1UL << (int)LineBreakClass.ZWJ)
+        | (1UL << (int)LineBreakClass.SA);
+
+    private const ulong NumberClasses =
+        (1UL << (int)LineBreakClass.NU)
+        | (1UL << (int)LineBreakClass.SY)
+        | (1UL << (int)LineBreakClass.IS)
+        | (1UL << (int)LineBreakClass.CL)
+        | (1UL << (int)LineBreakClass.CP);
+
+    private const ulong PlainRunClasses = ((1UL << LineBreakPairTable.Columns) - 1)
+        & ~CombiningClasses
+        & ~((1UL << (int)LineBreakClass.QU)
+            | (1UL << (int)LineBreakClass.RI)
+            | (1UL << (int)LineBreakClass.AI)
+            | (1UL << (int)LineBreakClass.CJ)
+            | (1UL << (int)LineBreakClass.SG)
+            | (1UL << (int)LineBreakClass.XX)
+            | (1UL << (int)LineBreakClass.AK)
+            | (1UL << (int)LineBreakClass.AS)
+            | (1UL << (int)LineBreakClass.AP)
+            | (1UL << (int)LineBreakClass.VF)
+            | (1UL << (int)LineBreakClass.VI));
+
+    private const byte SlowAfterZwj = 1;
+    private const byte SlowQuote = 2;
+    private const byte SlowBrahmic = 4;
+    private const byte SlowResolver = 8;
+    private const byte SlowStatic = 16;
+
     private readonly TDecoder _decoder;
     private readonly LineBreakOptions _options;
     private int _index;
@@ -34,13 +76,26 @@ internal ref struct LineBreakScanner<TDecoder>
     private bool _numClose;
     private bool _piQuote;
 
-    private bool _started;
+    private readonly bool _started;
     private bool _emittedEot;
 
-    public LineBreakScanner(TDecoder decoder, LineBreakOptions options)
+    private readonly byte _slowBase;
+    private readonly bool _plainRun;
+    private readonly LineBreakClass _ambiguousClass;
+    private readonly LineBreakClass _conditionalClass;
+    private byte _slowState;
+    private int _row;
+
+    public LineBreakScanner(TDecoder decoder, LineBreakOptions options, bool useTable = true)
     {
         _decoder = decoder;
         _options = options;
+        _slowBase = useTable && options.WordBreak == WordBreakMode.Normal ? (byte)0 : SlowStatic;
+        _plainRun = _slowBase == 0 && options.ClassOverride is null;
+        _ambiguousClass = options.AmbiguousWidth == AmbiguousWidthMode.Ideographic ? LineBreakClass.ID : LineBreakClass.AL;
+        _conditionalClass = options.Strictness == LineBreakStrictness.Normal ? LineBreakClass.ID : LineBreakClass.NS;
+        _slowState = _slowBase;
+        _row = 0;
         _index = 0;
         _curCls = LineBreakClass.XX;
         _curFlags = 0;
@@ -113,7 +168,191 @@ internal ref struct LineBreakScanner<TDecoder>
         return true;
     }
 
-    private BreakAction Decide(Eff n)
+    public bool TryNextBreak(out int position, out BreakAction action)
+    {
+        while (true)
+        {
+            if (TryScanPlainRun(out position, out action))
+            {
+                return true;
+            }
+            if (!TryNext(out position, out action))
+            {
+                return false;
+            }
+            if (action != BreakAction.Prohibited)
+            {
+                return true;
+            }
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    private bool TryScanPlainRun(out int position, out BreakAction action)
+    {
+        position = 0;
+        action = BreakAction.Prohibited;
+        int length = _decoder.Length;
+        int index = _index;
+        if (!_plainRun || _slowState != 0 || index >= length)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<byte> entries = LineBreakPairTable.Entries;
+        LineBreakClass beforeSp = _beforeSp;
+        int row = _row;
+        LineBreakClass lastCls = _curCls;
+        byte lastFlags = _curFlags;
+        LineBreakClass previousCls = _prevCls;
+        byte previousFlags = 0;
+        bool hasResolver = _options.ComplexContextResolver is not null;
+        bool numRun = _numRun;
+        bool numClose = _numClose;
+        bool consumed = false;
+        bool found = false;
+
+        int cp = _decoder.Decode(index, out int cpLength);
+        ushort value = LineBreakData.Lookup(cp);
+        while (true)
+        {
+            LineBreakClass cls = (LineBreakClass)(byte)value;
+            if (((PlainRunClasses >> (int)cls) & 1) == 0)
+            {
+                if (cls == LineBreakClass.AI)
+                {
+                    cls = _ambiguousClass;
+                }
+                else if (cls == LineBreakClass.CJ)
+                {
+                    cls = _conditionalClass;
+                }
+                else if (cls is LineBreakClass.SG or LineBreakClass.XX || (cls == LineBreakClass.SA && !hasResolver))
+                {
+                    cls = LineBreakClass.AL;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (cp == DottedCircle)
+            {
+                break;
+            }
+
+            int end = index + cpLength;
+            int nextCp = 0;
+            int nextLength = 0;
+            ushort nextValue = 0;
+            bool hasNext = end < length;
+            if (hasNext)
+            {
+                nextCp = _decoder.Decode(end, out nextLength);
+                nextValue = LineBreakData.Lookup(nextCp);
+                if (((CombiningClasses >> (byte)nextValue) & 1) != 0
+                    && ((LineBreakClass)(byte)nextValue != LineBreakClass.SA
+                        || hasResolver
+                        || (nextValue & (LineBreakData.FlagSaCombiningBase << 8)) != 0))
+                {
+                    break;
+                }
+            }
+
+            int entry = entries[row * LineBreakPairTable.Columns + (int)cls] - LineBreakPairTable.Digit;
+            if (entry >= 3)
+            {
+                break;
+            }
+
+            previousCls = lastCls;
+            previousFlags = lastFlags;
+            lastCls = cls;
+            lastFlags = (byte)(value >> 8);
+            if (cls == LineBreakClass.SP)
+            {
+                row = LineBreakPairTable.SpaceRowBase + (int)beforeSp;
+            }
+            else
+            {
+                beforeSp = cls;
+                row = (int)cls;
+            }
+            if (((NumberClasses >> (int)cls) & 1) == 0)
+            {
+                numRun = false;
+                numClose = false;
+            }
+            else if (cls == LineBreakClass.NU)
+            {
+                numRun = true;
+                numClose = false;
+            }
+            else if (cls is LineBreakClass.SY or LineBreakClass.IS)
+            {
+                numClose = false;
+            }
+            else
+            {
+                numClose = numRun;
+                numRun = false;
+            }
+            consumed = true;
+            position = index;
+            index = end;
+
+            if (entry != 0)
+            {
+                action = (BreakAction)entry;
+                found = true;
+                break;
+            }
+            if (!hasNext)
+            {
+                break;
+            }
+            cp = nextCp;
+            cpLength = nextLength;
+            value = nextValue;
+        }
+
+        if (consumed)
+        {
+            _prevCls = previousCls;
+            _prevEa = (previousFlags & LineBreakData.FlagEastAsian) != 0;
+            _prevAk = false;
+            _hasPrev = true;
+            _curCls = lastCls;
+            _curFlags = lastFlags;
+            _curAk = false;
+            _afterZwj = false;
+            _curSa = false;
+            _piQuote = false;
+            _ri = 0;
+            _numRun = numRun;
+            _numClose = numClose;
+            _beforeSp = beforeSp;
+            _row = row;
+            _slowState = 0;
+            _index = index;
+        }
+        return found;
+    }
+
+    private readonly BreakAction Decide(Eff n)
+    {
+        if (_slowState == 0)
+        {
+            int entry = LineBreakPairTable.Entries[_row * LineBreakPairTable.Columns + (int)n.Cls] - LineBreakPairTable.Digit;
+            if (entry < 3)
+            {
+                return (BreakAction)entry;
+            }
+        }
+        return DecideByRules(n);
+    }
+
+    private readonly BreakAction DecideByRules(Eff n)
     {
         LineBreakClass cur = _curCls;
         LineBreakClass next = n.Cls;
@@ -411,7 +650,7 @@ internal ref struct LineBreakScanner<TDecoder>
             or LineBreakClass.H2 or LineBreakClass.H3 or LineBreakClass.JL
             or LineBreakClass.JV or LineBreakClass.JT;
 
-    private bool DecideNumbers(LineBreakClass cur, LineBreakClass next, Eff n)
+    private readonly bool DecideNumbers(LineBreakClass cur, LineBreakClass next, Eff n)
     {
         if (_numClose && next is LineBreakClass.PO or LineBreakClass.PR)
         {
@@ -457,6 +696,45 @@ internal ref struct LineBreakScanner<TDecoder>
         LineBreakClass cls = e.Cls;
         bool ea = (e.Flags & LineBreakData.FlagEastAsian) != 0;
         bool ak = IsAk(cls, e.Cp);
+
+        if (((1UL << (int)cls) & StatefulClasses) == 0)
+        {
+            _piQuote = false;
+            _ri = 0;
+            _numRun = false;
+            _numClose = false;
+            _beforeSp = cls;
+        }
+        else
+        {
+            UpdateStatefulState(e, sotLeft);
+        }
+
+        if (_started || sotLeft)
+        {
+            _prevCls = _curCls;
+            _prevEa = (_curFlags & LineBreakData.FlagEastAsian) != 0;
+            _prevAk = _curAk;
+            _hasPrev = _started;
+        }
+
+        _curCls = cls;
+        _curFlags = e.Flags;
+        _curAk = ak;
+        _afterZwj = e.Zwj;
+        _curSa = e.Sa;
+
+        _row = cls == LineBreakClass.SP ? LineBreakPairTable.SpaceRowBase + (int)_beforeSp : (int)cls;
+        _slowState = (byte)(_slowBase
+            | (e.Zwj ? SlowAfterZwj : 0)
+            | (_piQuote ? SlowQuote : 0)
+            | (ak ? SlowBrahmic : 0)
+            | (e.Sa && _options.ComplexContextResolver is not null ? SlowResolver : 0));
+    }
+
+    private void UpdateStatefulState(Eff e, bool sotLeft)
+    {
+        LineBreakClass cls = e.Cls;
 
         bool leftPiContext = sotLeft
             || _curCls is LineBreakClass.BK or LineBreakClass.CR or LineBreakClass.LF or LineBreakClass.NL
@@ -504,20 +782,6 @@ internal ref struct LineBreakScanner<TDecoder>
         {
             _beforeSp = cls;
         }
-
-        if (_started || sotLeft)
-        {
-            _prevCls = _curCls;
-            _prevEa = (_curFlags & LineBreakData.FlagEastAsian) != 0;
-            _prevAk = _curAk;
-            _hasPrev = _started;
-        }
-
-        _curCls = cls;
-        _curFlags = e.Flags;
-        _curAk = ak;
-        _afterZwj = e.Zwj;
-        _curSa = e.Sa;
     }
 
     private static bool IsLb15bFollower(LineBreakClass c)
@@ -529,6 +793,7 @@ internal ref struct LineBreakScanner<TDecoder>
     private static bool IsAk(LineBreakClass c, int cp)
         => c is LineBreakClass.AK or LineBreakClass.AS || cp == DottedCircle;
 
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     private static Eff ReadEffective(TDecoder decoder, int index, in LineBreakOptions options)
     {
         if (index >= decoder.Length)

@@ -34,9 +34,10 @@ Correctness is not asserted from reading the specification: every boundary is co
    - [Tailoring](#tailoring)
 6. [Limitations](#limitations)
 7. [Notes](#notes)
-8. [Disclaimer](#disclaimer)
-9. [Third-Party Licenses](#third-party-licenses)
-10. [License](#license)
+8. [Reporting issues](#reporting-issues)
+9. [Disclaimer](#disclaimer)
+10. [Third-Party Licenses](#third-party-licenses)
+11. [License](#license)
 
 ---
 
@@ -60,7 +61,7 @@ The Unicode data is not vendored into this repository. The harness under `refere
 | SDK | .NET SDK 10.0 |
 | Language | C# 14 or later (`LangVersion` is set to `latest`) |
 | Unsafe code | Not required in the consuming project |
-| Reference data | Git or curl, required to download the Unicode data files used by the build and the tests |
+| Reference data | curl, required to download the Unicode data files used by the build and the tests |
 
 ---
 
@@ -115,20 +116,36 @@ The scanner is compared against the official LineBreakTest.txt of Unicode 17.0.0
 | Break and no-break at every boundary, including start and end of text | Exact |
 | Boundaries reported as UTF-16 offsets across the supplementary planes | Exact |
 
-The test project contains 62 tests and all of them pass. The conformance test alone drives all 19338 cases of the official file, and a second test replays the whole corpus through the UTF-8 path and checks that its byte offsets agree with the UTF-16 offsets. The remaining tests cover the empty string, single characters, hard and mandatory breaks, the carriage-return line-feed pair, supplementary plane offsets, emoji zero-width-joiner sequences, regional indicator pairing, lone surrogates, the whole code space, the tailoring options, the complex-context resolver seam, and the absence of managed allocation on both the UTF-16 and the UTF-8 path.
+The test project contains 69 tests and all of them pass. The conformance test alone drives all 19338 cases of the official file, and a second test replays the whole corpus through the UTF-8 path and checks that its byte offsets agree with the UTF-16 offsets. The remaining tests cover the empty string, single characters, hard and mandatory breaks, the carriage-return line-feed pair, supplementary plane offsets, emoji zero-width-joiner sequences, regional indicator pairing, lone surrogates, the whole code space, the tailoring options, the complex-context resolver seam, and the absence of managed allocation on both the UTF-16 and the UTF-8 path. Three further groups of tests guard the optimisations. One fixes the output over a pseudo-random corpus of 150000 sequences under fourteen option sets, by a hash recorded before the pair table existed. One compares the pair table with the rules, over 400000 random sequences and over every table entry in random contexts. One compares the scan of runs of characters with scanning one character at a time, over 400000 random sequences on the UTF-16 path and as many on the UTF-8 path.
 
 ### 6. Performance
 
-The algorithm is a sequential scan: each break decision depends on the classes and the accumulated state to its left, so the scan cannot be vectorised across characters. The throughput therefore comes from the compact trie, from aggressive inlining and from the absence of allocation, rather than from single-instruction-multiple-data parallelism.
+The algorithm is a sequential scan: each break decision depends on the classes and the accumulated state to its left, so the scan cannot be vectorised across characters. The throughput therefore comes from the compact trie, from a pair table, from aggressive inlining and from the absence of allocation, rather than from single-instruction-multiple-data parallelism.
+
+The pair table holds the decision for a pair of classes, indexed by the class before a position and the class after it. After spaces it is indexed by the class before the spaces and the class after them. A decision that depends on more than those classes, for example on the East Asian width, on a look-ahead or on the state accumulated to the left, is made by the rules instead, and with `WordBreak` set to `BreakAll` or `KeepAll` the rules decide every position. A pair is stored in the table only if its result never varied when the rules evaluated it in 6000 random contexts.
+
+Where the table decides, the scanner reads a run of characters at a time. It advances in local variables while each character belongs to a class that needs nothing beyond the number state, and it returns at a break or at the first character that needs the general path. Such a character is a quotation mark, a regional indicator, a character of a Brahmic script, a combining mark, or the second character of a pair that the table leaves to the rules. The classes AI, CJ, SG and XX, and SA when no resolver is set, are read as the class that rule LB1 assigns them.
 
 The first table is a fixed record taken on a workstation. It is not regenerated.
 
-13th Gen Intel Core i7-1360P under Windows 11, sample application published with Native AOT for an `x86-64-v3` baseline, best of 30 runs, over a multilingual corpus of 630784 code points containing Latin, CJK, Thai, Hebrew, digits, punctuation, quotation marks, emoji and regional indicators.
+13th Gen Intel Core i7-1360P under Windows 11, sample application published with Native AOT for an `x86-64-v3` baseline, best of 480 runs, which are 30 runs in each of 16 processes alternating between the builds, over a multilingual corpus of 630784 code points containing Latin, CJK, Thai, Hebrew, digits, punctuation, quotation marks, emoji and regional indicators.
 
-| Metric | Native AOT |
-|---|---:|
-| Throughput | 70.1 MB/s |
-| Time per code point | 27.92 ns |
+| Build | Native AOT throughput | Native AOT time per code point | JIT throughput | JIT time per code point |
+|---|---:|---:|---:|---:|
+| Before the optimisations | 59.8 MB/s | 32.74 ns | 54.1 MB/s | 36.14 ns |
+| After the optimisations | 244.4 MB/s | 8.01 ns | 233.5 MB/s | 8.38 ns |
+
+The sample application sets `TieredCompilation` to false in its project file, so its just-in-time figures are the same on the first pass as after warming up. They are the best of 30 runs in a process, after one untimed pass over the corpus. Every optimisation below leaves the output identical, which the tests above check. The effect of each is its speed-up over the stage before it, measured with the Native AOT build of the sample, alternating between all six builds.
+
+| Optimisation | Effect |
+|---|---|
+| Decision for a pair of classes read from a table | 1.54x |
+| State of the scan updated with fewer branches for classes that keep no state | 1.07x |
+| Runs of characters scanned in local variables | 1.64x |
+| Number and punctuation classes included in those runs | 1.41x |
+| Line break classes and classes read as another class included in those runs | 1.11x |
+
+The two routines that contain the scanning loops carry `MethodImplOptions.AggressiveOptimization`, so that under the just-in-time compiler they are optimized at the first call instead of starting in the unoptimized tier. Native AOT compiles ahead of time and is unaffected. With tiered compilation at its default, the first pass over the corpus in a fresh process took 24.68 ms before the optimisations, 10.91 ms after them without the mark and 7.44 ms with the mark. A marked routine does not benefit from dynamic profile-guided optimization, which the documentation of `MethodImplOptions` states, and once a process has warmed up the best of 30 runs took 5.04 ms with the mark against 4.70 ms without it.
 
 The second section is regenerated by the benchmark workflow on a GitHub Actions runner. The hardware differs from the workstation, which makes it an independent check that the figures do not depend on one particular machine.
 
@@ -143,7 +160,7 @@ Measured by CI on a GitHub Actions `windows-latest` runner with Intel64 Family 6
 
 <!-- BENCHMARK:CI:END -->
 
-Figures obtained through the just-in-time compiler are deliberately absent. The reported figures are those of the Native AOT build that the library ships as a sample.
+The Native AOT figures come from the sample application published with Native AOT, and the JIT figures from the same application run through the just-in-time compiler.
 
 ---
 
@@ -228,8 +245,29 @@ The enumerator yields one opportunity per position at which a break is allowed o
 - Input encoding: UTF-16 input reports UTF-16 code unit offsets, and UTF-8 input reports byte offsets. A surrogate pair is a single scalar value at the offset of its high surrogate, a lone surrogate is treated as a single unit of the surrogate class, and an invalid UTF-8 sequence is decoded as one replacement character.
 - Determinism: the scan produces identical output across repeated runs and holds no state between calls. Because the enumerator is a `ref struct` over a caller-owned span, separate enumerations are independent and no instance is shared.
 - Resolution seam: rule LB1 resolution is separate from the rule engine, so the tailoring options and the complex-context resolver change class assignments and interior breaks without touching the non-tailorable rules.
+- Pair table: `Uax14Net/LineBreakPairTable.cs` is derived from the rules, and the tests compare it with them. The [contributing guide](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.md) describes how to regenerate it after a change to the rules.
 - Native AOT: the library sets `IsAotCompatible`, which enables the trim, single-file and AOT analyzers. `publish-aot.bat` publishes the sample application for `win-x64` and requires the MSVC toolset for the native linker.
 - Regenerating reference data: `reference/build.sh` and `reference/build.bat` download the Unicode 17.0.0 data files, verify their version header, and write them to `reference/data`. That directory is excluded from version control.
+
+---
+
+## Reporting issues
+
+Report problems on GitHub [Issues](https://github.com/routersys/Uax14Net/issues). The library does not send any report automatically.
+
+Please include the following in the report.
+
+| Item | Content |
+|---|---|
+| Environment | The version of Uax14Net, the version of the .NET SDK or runtime, the operating system and the processor architecture |
+| Input | The text as code points, and whether it was passed as UTF-16 or as UTF-8 |
+| Steps | The calls in the order they were made, including every option that differs from its default |
+| Result | The expected and the actual break offsets |
+| Exception | The type, the message and the stack trace, unmodified |
+
+Report a vulnerability privately as the [security policy](https://github.com/routersys/Uax14Net/blob/main/SECURITY.md) describes, not in an issue.
+
+To contribute a change, read the [contributing guide](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.md).
 
 ---
 

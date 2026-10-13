@@ -7,10 +7,9 @@ import subprocess
 import sys
 
 
-def measure(aot, runs):
-    aot = os.path.abspath(aot)
+def measure(command):
     result = subprocess.run(
-        [aot, "bench", str(runs)],
+        command,
         check=True,
         capture_output=True,
         text=True,
@@ -57,33 +56,33 @@ def cpu_name():
     return platform.processor() or "unknown processor"
 
 
-def block_en(fields, runs, date, commit, cpu):
-    mb = float(fields["throughput_mb_per_s"])
-    ns = float(fields["ns_per_codepoint"])
-    cps = int(fields["codepoints"])
+def block_en(aot, jit, runs, date, commit, cpu):
+    cps = int(aot["codepoints"])
     return (
         f"Measured by CI on a GitHub Actions `windows-latest` runner with {cpu}. "
         f"Figures are the best of {runs} runs over a {cps} code point multilingual corpus, "
-        f"published with Native AOT. Recorded on {date} from commit `{commit[:7]}`.\n\n"
-        "| Metric | Native AOT |\n"
-        "|---|---:|\n"
-        f"| Throughput | {mb:.1f} MB/s |\n"
-        f"| Time per code point | {ns:.2f} ns |\n"
+        "taken in one process after one untimed pass. "
+        "Both builds run back to back in the same job. "
+        f"Recorded on {date} from commit `{commit[:7]}`.\n\n"
+        "| Metric | Native AOT | JIT |\n"
+        "|---|---:|---:|\n"
+        f"| Throughput | {float(aot['throughput_mb_per_s']):.1f} MB/s | {float(jit['throughput_mb_per_s']):.1f} MB/s |\n"
+        f"| Time per code point | {float(aot['ns_per_codepoint']):.2f} ns | {float(jit['ns_per_codepoint']):.2f} ns |\n"
     )
 
 
-def block_ja(fields, runs, date, commit, cpu):
-    mb = float(fields["throughput_mb_per_s"])
-    ns = float(fields["ns_per_codepoint"])
-    cps = int(fields["codepoints"])
+def block_ja(aot, jit, runs, date, commit, cpu):
+    cps = int(aot["codepoints"])
     return (
-        f"GitHub Actions の `windows-latest` ランナー ({cpu}) で CI が計測。"
-        f"NativeAOT で発行し、{cps} コードポイントの多言語コーパスに対する {runs} 回中の最良値。"
-        f"{date} に コミット `{commit[:7]}` で記録。\n\n"
-        "| 指標 | NativeAOT |\n"
-        "|---|---:|\n"
-        f"| スループット | {mb:.1f} MB/s |\n"
-        f"| コードポイント毎の時間 | {ns:.2f} ns |\n"
+        f"GitHub Actionsの`windows-latest`ランナー（{cpu}）でCIが計測しました。"
+        f"{cps}コードポイントの多言語コーパスについて、{runs}回のうち最良の値です。"
+        "1つのプロセスの中で、計測しない通しを1回行ったあとの値です。"
+        "2つのビルドは、同じジョブの中で続けて走らせています。"
+        f"{date}に、コミット`{commit[:7]}`で記録しました。\n\n"
+        "| 指標 | Native AOT | JIT |\n"
+        "|---|---:|---:|\n"
+        f"| スループット | {float(aot['throughput_mb_per_s']):.1f} MB/s | {float(jit['throughput_mb_per_s']):.1f} MB/s |\n"
+        f"| コードポイントあたりの時間 | {float(aot['ns_per_codepoint']):.2f} ns | {float(jit['ns_per_codepoint']):.2f} ns |\n"
     )
 
 
@@ -100,18 +99,21 @@ def replace_region(path, body):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--aot", required=True)
+    parser.add_argument("--jit", required=True)
     parser.add_argument("--runs", default="20")
     parser.add_argument("--readme", required=True)
     parser.add_argument("--readme-ja", required=True)
     parser.add_argument("--commit", required=True)
     args = parser.parse_args()
 
-    fields = measure(args.aot, int(args.runs))
+    runs = int(args.runs)
+    aot = measure([os.path.abspath(args.aot), "bench", str(runs)])
+    jit = measure(["dotnet", os.path.abspath(args.jit), "bench", str(runs)])
     date = datetime.date.today().isoformat()
     cpu = cpu_name()
 
-    replace_region(args.readme, block_en(fields, int(args.runs), date, args.commit, cpu))
-    replace_region(args.readme_ja, block_ja(fields, int(args.runs), date, args.commit, cpu))
+    replace_region(args.readme, block_en(aot, jit, runs, date, args.commit, cpu))
+    replace_region(args.readme_ja, block_ja(aot, jit, runs, date, args.commit, cpu))
     print("updated benchmark sections")
 
 

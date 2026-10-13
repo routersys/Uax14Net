@@ -80,7 +80,7 @@ internal static class LineBreakTestData
             }
 
             var sb = new StringBuilder();
-            var offsets = new int[codePoints.Count + 1];
+            int[] offsets = new int[codePoints.Count + 1];
             for (int i = 0; i < codePoints.Count; i++)
             {
                 offsets[i] = sb.Length;

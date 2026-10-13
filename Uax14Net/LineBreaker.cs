@@ -24,15 +24,12 @@ internal static class LineBreakCore
     public static bool TryAdvance<TDecoder>(ref LineBreakScanner<TDecoder> scanner, out LineBreakOpportunity current)
         where TDecoder : struct, IUtfDecoder, allows ref struct
     {
-        while (scanner.TryNext(out int position, out BreakAction action))
+        if (scanner.TryNextBreak(out int position, out BreakAction action))
         {
-            if (action != BreakAction.Prohibited)
-            {
-                current = new LineBreakOpportunity(
-                    position,
-                    action == BreakAction.Mandatory ? LineBreakKind.Mandatory : LineBreakKind.Allowed);
-                return true;
-            }
+            current = new LineBreakOpportunity(
+                position,
+                action == BreakAction.Mandatory ? LineBreakKind.Mandatory : LineBreakKind.Allowed);
+            return true;
         }
         current = default;
         return false;

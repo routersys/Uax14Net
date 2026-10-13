@@ -1,0 +1,173 @@
+name: 不具合報告
+description: ライブラリが文書化している挙動や保証と異なる動きを報告します。
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        脆弱性はここへ書かないでください。前の画面の脆弱性報告のリンクを使ってください。
+        テキストの内容やオプションの値で起きる異常終了や範囲外アクセスは、脆弱性の可能性があります。
+
+        報告が動くのは、他人が再現できるときだけです。以下の項目は、このライブラリで
+        再現できるかどうかを決めるものに絞ってあります。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 領域
+      description: 挙動が現れる場所です。ご自身のコードではなく、失敗した箇所に近いものを選んでください。
+      options:
+        - 改行機会と必須の改行（規則LB4からLB8）
+        - 結合文字、Joiner、改行を禁止する文字（規則LB8aからLB12a）
+        - 引用符、括弧、約物（規則LB13からLB22）
+        - 数字（規則LB23からLB25）
+        - ハングル、ブラーフミー系文字、絵文字、Regional Indicator（規則LB26からLB30b）
+        - 改行クラスの取得（GetLineBreakClass）
+        - テーラリングオプション（LineBreakOptions）
+        - 複合文脈Resolver（IComplexContextResolver）
+        - UTF-8入力とバイトオフセット
+        - ソースジェネレーターまたは参照データ
+        - パッケージ、NuGet、Native AOT
+        - 判断がつかない
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: 症状
+      options:
+        - 例外が投げられる
+        - 改行が公式のLineBreakTest.txtと異なる
+        - 改行がUAX #14の本文と異なる
+        - 改行がほかの実装と異なる
+        - プロセスが異常終了する
+        - マネージドメモリの確保やメモリの増加が起きる
+        - 想定より遅い
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: パッケージの版数
+      description: 参照しているUax14Netパッケージの正確な版数を書いてください。
+      placeholder: Uax14Net 1.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期待した挙動
+      description: 何を期待したか。文書に根拠がある場合はその箇所も書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際の挙動
+      description: |
+        代わりに何が起きたか。例外が出た場合は種別とメッセージとスタックトレースを省略せずに貼ってください。
+        改行が誤っている場合は、列挙子が返したオフセットと、期待したオフセットを書いてください。
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: 再現手順
+      description: |
+        問題を示す最小のコードです。既定値と異なるオプションはすべて含めてください。
+        これが無い報告は、情報不足として閉じられることが多くなります。
+      render: csharp
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: 入力
+      description: |
+        テキストをU+0061 U+0020 U+4E00のようなコードポイントの並びで書いてください。見た目が
+        同じ文字でも、コードポイントが異なることがあるためです。テキストをUTF-16で渡したかUTF-8で
+        渡したかと、各コードポイントの改行クラスをどう考えているかも書いてください。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: comparison
+    attributes:
+      label: 仕様との比較
+      description: |
+        Uax14NetはUnicode 17.0.0のUAX #14 Revision 55の既定の規則を実装し、同じ版の公式の
+        LineBreakTest.txtに対して確かめています。テーラリングを適用する実装は、既定の挙動の基準に
+        なりません。どの実装がどう異なるかを書いてください。
+      options:
+        - 公式のLineBreakTest.txtの行が異なる結果を示す
+        - UAX #14 Revision 55の本文が異なる結果を示す
+        - ほかの実装が異なる結果を返す
+        - 比べていない
+        - 該当しない
+    validations:
+      required: true
+
+  - type: input
+    id: other
+    attributes:
+      label: ほかの実装
+      description: ほかの実装と比べた場合だけ書いてください。名前、版数、実行したオプションです。
+      placeholder: ICU、その版数、実行したロケール
+
+  - type: input
+    id: runtime
+    attributes:
+      label: .NETランタイムとターゲットフレームワーク
+      description: |
+        プロセスを動かしているランタイムをdotnet --list-runtimesで調べたものと、ご自身のプロジェクトの
+        ターゲットフレームワークです。パッケージが含むのはnet10.0のビルドだけです。
+      placeholder: Microsoft.NETCore.App 10.0.0, target net10.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: 実行方式
+      options:
+        - JIT
+        - ReadyToRun
+        - Native AOT
+        - 判断がつかない
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OSとアーキテクチャー
+      placeholder: Windows 11 24H2 x64, Ubuntu 24.04 ARM64
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: その他
+      description: |
+        確保や時間をどう測ったか、Strictness、WordBreak、AmbiguousWidthの値、ClassOverrideや
+        ComplexContextResolverを設定しているか、設定している場合はその動き、その他関係すると思われることを書いてください。
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 提出の前に
+      options:
+        - label: 最新の公開版を使っています。使えない場合はその理由を上に書きました。
+          required: true
+        - label: 既存のIssueを検索し、重複でないことを確認しました。
+          required: true
+        - label: READMEの制限事項を読み、そこに挙げられた制限ではないことを確認しました。
+          required: true
