@@ -52,10 +52,19 @@ public class PairTableTests
 
     [Fact]
     public void EveryTableEntryMatchesRulePathInRandomContexts()
+        => CheckEntries(LineBreakPairTable.Entries, new LineBreakOptions());
+
+    [Fact]
+    public void EveryBreakAllEntryMatchesRulePathInRandomContexts()
+        => CheckEntries(LineBreakPairTable.BreakAllEntries, new LineBreakOptions { WordBreak = WordBreakMode.BreakAll });
+
+    [Fact]
+    public void EveryKeepAllEntryMatchesRulePathInRandomContexts()
+        => CheckEntries(LineBreakPairTable.KeepAllEntries, new LineBreakOptions { WordBreak = WordBreakMode.KeepAll });
+
+    private static void CheckEntries(ReadOnlySpan<byte> entries, LineBreakOptions options)
     {
         var contexts = new PairTableContexts(0xBEEF);
-        LineBreakOptions options = LineBreakOptions.Default;
-        ReadOnlySpan<byte> entries = LineBreakPairTable.Entries;
         int checkedEntries = 0;
         for (int row = 0; row < entries.Length / LineBreakPairTable.Columns; row++)
         {
@@ -87,8 +96,16 @@ public class PairTableTests
         {
             return;
         }
-        char[] first = new PairTableContexts(0xA11CE).DeriveTable(DerivationSamples);
-        char[] second = new PairTableContexts(0xB0B5).DeriveTable(DerivationSamples);
-        File.WriteAllText(path, PairTableContexts.ToSource(PairTableContexts.Agree(first, second)));
+        char[] normal = Derive(new LineBreakOptions());
+        char[] breakAll = Derive(new LineBreakOptions { WordBreak = WordBreakMode.BreakAll });
+        char[] keepAll = Derive(new LineBreakOptions { WordBreak = WordBreakMode.KeepAll });
+        File.WriteAllText(path, PairTableContexts.ToSource(normal, breakAll, keepAll));
+    }
+
+    private static char[] Derive(LineBreakOptions options)
+    {
+        char[] first = new PairTableContexts(0xA11CE).DeriveTable(DerivationSamples, options);
+        char[] second = new PairTableContexts(0xB0B5).DeriveTable(DerivationSamples, options);
+        return PairTableContexts.Agree(first, second);
     }
 }

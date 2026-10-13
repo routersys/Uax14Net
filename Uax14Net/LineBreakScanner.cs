@@ -80,6 +80,7 @@ internal ref struct LineBreakScanner<TDecoder>
     private bool _emittedEot;
 
     private readonly byte _slowBase;
+    private readonly ReadOnlySpan<byte> _entries;
     private readonly LineBreakClass _ambiguousClass;
     private readonly LineBreakClass _conditionalClass;
     private byte _slowState;
@@ -89,7 +90,8 @@ internal ref struct LineBreakScanner<TDecoder>
     {
         _decoder = decoder;
         _options = options;
-        _slowBase = useTable && options.WordBreak == WordBreakMode.Normal ? (byte)0 : SlowStatic;
+        _slowBase = useTable ? (byte)0 : SlowStatic;
+        _entries = SelectEntries(options.WordBreak);
         _ambiguousClass = options.AmbiguousWidth == AmbiguousWidthMode.Ideographic ? LineBreakClass.ID : LineBreakClass.AL;
         _conditionalClass = options.Strictness == LineBreakStrictness.Normal ? LineBreakClass.ID : LineBreakClass.NS;
         _slowState = _slowBase;
@@ -203,7 +205,7 @@ internal ref struct LineBreakScanner<TDecoder>
             return false;
         }
 
-        ReadOnlySpan<byte> entries = LineBreakPairTable.Entries;
+        ReadOnlySpan<byte> entries = _entries;
         LineBreakClass beforeSp = _beforeSp;
         int row = _row;
         LineBreakClass lastCls = _curCls;
@@ -343,11 +345,19 @@ internal ref struct LineBreakScanner<TDecoder>
         return found;
     }
 
+    private static ReadOnlySpan<byte> SelectEntries(WordBreakMode wordBreak)
+        => wordBreak switch
+        {
+            WordBreakMode.BreakAll => LineBreakPairTable.BreakAllEntries,
+            WordBreakMode.KeepAll => LineBreakPairTable.KeepAllEntries,
+            _ => LineBreakPairTable.Entries
+        };
+
     private readonly BreakAction Decide(Eff n)
     {
         if (_slowState == 0)
         {
-            int entry = LineBreakPairTable.Entries[_row * LineBreakPairTable.Columns + (int)n.Cls] - LineBreakPairTable.Digit;
+            int entry = _entries[_row * LineBreakPairTable.Columns + (int)n.Cls] - LineBreakPairTable.Digit;
             if (entry < 3)
             {
                 return (BreakAction)entry;

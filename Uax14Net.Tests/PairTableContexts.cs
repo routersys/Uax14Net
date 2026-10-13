@@ -153,24 +153,33 @@ internal sealed class PairTableContexts
         return table;
     }
 
-    public static string ToSource(char[] table)
+    public static string ToSource(char[] normal, char[] breakAll, char[] keepAll)
     {
         var source = new StringBuilder();
         source.Append("using System;\n\nnamespace Uax14Net;\n\ninternal static class LineBreakPairTable\n{\n");
         source.Append("    public const int Columns = 49;\n    public const int SpaceRowBase = 49;\n");
-        source.Append("    public const byte Digit = (byte)'0';\n\n    public static ReadOnlySpan<byte> Entries =>\n");
+        source.Append("    public const byte Digit = (byte)'0';\n\n");
+        AppendTable(source, "Entries", normal);
+        source.Append('\n');
+        AppendTable(source, "BreakAllEntries", breakAll);
+        source.Append('\n');
+        AppendTable(source, "KeepAllEntries", keepAll);
+        source.Append("}\n");
+        return source.ToString();
+    }
+
+    private static void AppendTable(StringBuilder source, string name, char[] table)
+    {
+        source.Append("    public static ReadOnlySpan<byte> ").Append(name).Append(" =>\n");
         for (int row = 0; row < Rows; row++)
         {
             source.Append("        \"").Append(table, row * Columns, Columns).Append("\"u8");
             source.Append(row < Rows - 1 ? " +\n" : ";\n");
         }
-        source.Append("}\n");
-        return source.ToString();
     }
 
-    public char[] DeriveTable(int samples)
+    public char[] DeriveTable(int samples, LineBreakOptions options)
     {
-        LineBreakOptions options = LineBreakOptions.Default;
         char[] table = new char[Rows * Columns];
         Array.Fill(table, '3');
         for (int row = 0; row < Rows; row++)
