@@ -18,15 +18,15 @@ body:
       label: 領域
       description: 挙動が現れる場所です。ご自身のコードではなく、失敗した箇所に近いものを選んでください。
       options:
-        - 改行機会と必須改行（規則 LB4 から LB8）
-        - 結合文字、結合子、改行禁止文字（規則 LB8a から LB12a）
-        - 引用符、括弧、約物（規則 LB13 から LB22）
-        - 数字（規則 LB23 から LB25）
-        - ハングル、ブラーフミー系文字、絵文字、地域指示子（規則 LB26 から LB30b）
-        - 改行クラスの引き当て（GetLineBreakClass）
+        - 改行機会と必須の改行（規則LB4からLB8）
+        - 結合文字、Joiner、改行を禁止する文字（規則LB8aからLB12a）
+        - 引用符、括弧、約物（規則LB13からLB22）
+        - 数字（規則LB23からLB25）
+        - ハングル、ブラーフミー系文字、絵文字、Regional Indicator（規則LB26からLB30b）
+        - 改行クラスの取得（GetLineBreakClass）
         - テーラリングオプション（LineBreakOptions）
-        - 複合文脈 Resolver（IComplexContextResolver）
-        - UTF-8 入力とバイトオフセット
+        - 複合文脈Resolver（IComplexContextResolver）
+        - UTF-8入力とバイトオフセット
         - ソースジェネレーターまたは参照データ
         - パッケージ、NuGet、Native AOT
         - 判断がつかない
@@ -39,8 +39,8 @@ body:
       label: 症状
       options:
         - 例外が投げられる
-        - 改行が公式の LineBreakTest.txt と異なる
-        - 改行が UAX #14 の本文と異なる
+        - 改行が公式のLineBreakTest.txtと異なる
+        - 改行がUAX #14の本文と異なる
         - 改行がほかの実装と異なる
         - プロセスが異常終了する
         - マネージドメモリの確保やメモリの増加が起きる
@@ -52,7 +52,7 @@ body:
     id: version
     attributes:
       label: パッケージの版数
-      description: 参照している Uax14Net パッケージの正確な版数を書いてください。
+      description: 参照しているUax14Netパッケージの正確な版数を書いてください。
       placeholder: Uax14Net 1.1.0
     validations:
       required: true
@@ -91,8 +91,8 @@ body:
     attributes:
       label: 入力
       description: |
-        テキストを U+0061 U+0020 U+4E00 のようなコードポイントの並びで書いてください。見た目が
-        同じ文字でも、コードポイントが異なることがあるためです。テキストを UTF-16 で渡したか UTF-8 で
+        テキストをU+0061 U+0020 U+4E00のようなコードポイントの並びで書いてください。見た目が
+        同じ文字でも、コードポイントが異なることがあるためです。テキストをUTF-16で渡したかUTF-8で
         渡したかと、各コードポイントの改行クラスをどう考えているかも書いてください。
     validations:
       required: true
@@ -102,12 +102,12 @@ body:
     attributes:
       label: 仕様との比較
       description: |
-        Uax14Net は Unicode 17.0.0 の UAX #14 Revision 55 の既定の規則を実装し、同じ版の公式の
-        LineBreakTest.txt に対して確かめています。テーラリングを適用する実装は、既定の挙動の基準に
+        Uax14NetはUnicode 17.0.0のUAX #14 Revision 55の既定の規則を実装し、同じ版の公式の
+        LineBreakTest.txtに対して確かめています。テーラリングを適用する実装は、既定の挙動の基準に
         なりません。どの実装がどう異なるかを書いてください。
       options:
-        - 公式の LineBreakTest.txt の行が異なる結果を示す
-        - UAX #14 Revision 55 の本文が異なる結果を示す
+        - 公式のLineBreakTest.txtの行が異なる結果を示す
+        - UAX #14 Revision 55の本文が異なる結果を示す
         - ほかの実装が異なる結果を返す
         - 比べていない
         - 該当しない
@@ -126,8 +126,8 @@ body:
     attributes:
       label: .NETランタイムとターゲットフレームワーク
       description: |
-        プロセスを動かしているランタイムを dotnet --list-runtimes で調べたものと、ご自身のプロジェクトの
-        ターゲットフレームワークです。パッケージが含むのは net10.0 のビルドだけです。
+        プロセスを動かしているランタイムをdotnet --list-runtimesで調べたものと、ご自身のプロジェクトの
+        ターゲットフレームワークです。パッケージが含むのはnet10.0のビルドだけです。
       placeholder: Microsoft.NETCore.App 10.0.0, target net10.0
     validations:
       required: true
@@ -157,8 +157,8 @@ body:
     attributes:
       label: その他
       description: |
-        確保や時間をどう測ったか、Strictness、WordBreak、AmbiguousWidth の値、ClassOverride や
-        ComplexContextResolver を設定しているか、設定している場合はその動き、その他関係すると思われることを書いてください。
+        確保や時間をどう測ったか、Strictness、WordBreak、AmbiguousWidthの値、ClassOverrideや
+        ComplexContextResolverを設定しているか、設定している場合はその動き、その他関係すると思われることを書いてください。
 
   - type: checkboxes
     id: checks
