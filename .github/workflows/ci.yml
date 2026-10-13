@@ -105,9 +105,20 @@ jobs:
           echo "実行: ${AOT}"
           "${AOT}"
 
-  build-linux:
-    name: Linux でのビルドと適合検証
-    runs-on: ubuntu-latest
+  cross-platform:
+    name: ${{ matrix.name }} でのビルドと適合検証
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows ARM64
+            runner: windows-11-arm
+          - name: Linux x64
+            runner: ubuntu-latest
+          - name: Linux ARM64
+            runner: ubuntu-24.04-arm
     defaults:
       run:
         shell: bash
