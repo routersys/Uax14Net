@@ -61,7 +61,7 @@ The Unicode data is not vendored into this repository. The harness under `refere
 | SDK | .NET SDK 10.0 |
 | Language | C# 14 or later (`LangVersion` is set to `latest`) |
 | Unsafe code | Not required in the consuming project |
-| Reference data | Git or curl, required to download the Unicode data files used by the build and the tests |
+| Reference data | curl, required to download the Unicode data files used by the build and the tests |
 
 ---
 
