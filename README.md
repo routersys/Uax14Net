@@ -34,9 +34,10 @@ Correctness is not asserted from reading the specification: every boundary is co
    - [Tailoring](#tailoring)
 6. [Limitations](#limitations)
 7. [Notes](#notes)
-8. [Disclaimer](#disclaimer)
-9. [Third-Party Licenses](#third-party-licenses)
-10. [License](#license)
+8. [Reporting issues](#reporting-issues)
+9. [Disclaimer](#disclaimer)
+10. [Third-Party Licenses](#third-party-licenses)
+11. [License](#license)
 
 ---
 
@@ -247,6 +248,26 @@ The enumerator yields one opportunity per position at which a break is allowed o
 - Pair table: `Uax14Net/LineBreakPairTable.cs` is derived from the rules, and the tests compare it with them. The [contributing guide](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.md) describes how to regenerate it after a change to the rules.
 - Native AOT: the library sets `IsAotCompatible`, which enables the trim, single-file and AOT analyzers. `publish-aot.bat` publishes the sample application for `win-x64` and requires the MSVC toolset for the native linker.
 - Regenerating reference data: `reference/build.sh` and `reference/build.bat` download the Unicode 17.0.0 data files, verify their version header, and write them to `reference/data`. That directory is excluded from version control.
+
+---
+
+## Reporting issues
+
+Report problems on GitHub [Issues](https://github.com/routersys/Uax14Net/issues). The library does not send any report automatically.
+
+Please include the following in the report.
+
+| Item | Content |
+|---|---|
+| Environment | The version of Uax14Net, the version of the .NET SDK or runtime, the operating system and the processor architecture |
+| Input | The text as code points, and whether it was passed as UTF-16 or as UTF-8 |
+| Steps | The calls in the order they were made, including every option that differs from its default |
+| Result | The expected and the actual break offsets |
+| Exception | The type, the message and the stack trace, unmodified |
+
+Report a vulnerability privately as the [security policy](https://github.com/routersys/Uax14Net/blob/main/SECURITY.md) describes, not in an issue.
+
+To contribute a change, read the [contributing guide](https://github.com/routersys/Uax14Net/blob/main/CONTRIBUTING.md).
 
 ---
 
