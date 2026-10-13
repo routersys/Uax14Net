@@ -230,6 +230,7 @@ foreach (LineBreakOpportunity op in LineBreaker.Enumerate("The quick brown fox")
 - 入力エンコーディング: UTF-16 入力は UTF-16 コード単位のオフセットを、UTF-8 入力はバイトオフセットを報告します。サロゲート対は高位サロゲートのオフセットにある単一のスカラー値で、孤立サロゲートはサロゲートクラスの単一の単位として扱い、不正な UTF-8 列は一つの置換文字として復号します。
 - 決定性: 走査は繰り返し実行しても同一の出力を生成し、呼び出し間で状態を保持しません。列挙子は呼び出し側が所有するスパン上の `ref struct` のため、別々の列挙は独立し、インスタンスを共有しません。
 - 解決の接合点: 規則 LB1 の解決は規則エンジンから分離しており、テーラリングオプションと複合文脈 Resolver はテーラリング不可能な規則へ触れずにクラス割り当てと区間内部の改行を変えます。
+- 判定表: `Uax14Net/LineBreakPairTable.cs` は規則から導出したもので、手で書いたものではありません。規則を変えたあとは、環境変数 `UAX14NET_PAIR_TABLE_OUTPUT` にファイルのパスを設定してテスト `WritesDerivedTableWhenRequested` を実行し、`Uax14Net/LineBreakPairTable.cs` をそのファイルで置き換えます。表が規則と食い違っている間は、テストが失敗します。
 - Native AOT: ライブラリは `IsAotCompatible` を設定し、trim・単一ファイル・AOT の各アナライザーを有効にします。`publish-aot.bat` はサンプルアプリケーションを `win-x64` 向けに発行し、ネイティブリンカーに MSVC ツールセットを必要とします。
 - 参照データの再生成: `reference/build.sh` と `reference/build.bat` は Unicode 17.0.0 のデータファイルをダウンロードし、バージョンヘッダーを検証して `reference/data` へ書き出します。このディレクトリはバージョン管理から除外します。
 
