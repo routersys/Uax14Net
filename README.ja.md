@@ -153,12 +153,12 @@ Windows 11上の13th Gen Intel Core i7-1360Pで、サンプルアプリケーシ
 
 <!-- BENCHMARK:CI:BEGIN -->
 
-GitHub Actionsの`windows-latest`ランナー（AMD64 Family 25 Model 17 Stepping 1, AuthenticAMD）でCIが計測しました。630784コードポイントの多言語コーパスについて、50回のうち最良の値です。1つのプロセスの中で、計測しない通しを1回行ったあとの値です。2つのビルドは、同じジョブの中で続けて走らせています。2026-10-13に、コミット`f31d682`で記録しました。
+GitHub Actionsの`windows-latest`ランナー（Intel64 Family 6 Model 207 Stepping 2, GenuineIntel）でCIが計測しました。630784コードポイントの多言語コーパスについて、50回のうち最良の値です。1つのプロセスの中で、計測しない通しを1回行ったあとの値です。2つのビルドは、同じジョブの中で続けて走らせています。2026-10-13に、コミット`2c0dd41`で記録しました。
 
 | 指標 | Native AOT | JIT |
 |---|---:|---:|
-| スループット | 235.1 MB/s | 243.0 MB/s |
-| コードポイントあたりの時間 | 8.32 ns | 8.05 ns |
+| スループット | 258.2 MB/s | 259.5 MB/s |
+| コードポイントあたりの時間 | 7.58 ns | 7.54 ns |
 
 <!-- BENCHMARK:CI:END -->
 
