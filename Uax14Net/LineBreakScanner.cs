@@ -411,7 +411,7 @@ internal ref struct LineBreakScanner<TDecoder>
             or LineBreakClass.H2 or LineBreakClass.H3 or LineBreakClass.JL
             or LineBreakClass.JV or LineBreakClass.JT;
 
-    private bool DecideNumbers(LineBreakClass cur, LineBreakClass next, Eff n)
+    private readonly bool DecideNumbers(LineBreakClass cur, LineBreakClass next, Eff n)
     {
         if (_numClose && next is LineBreakClass.PO or LineBreakClass.PR)
         {
